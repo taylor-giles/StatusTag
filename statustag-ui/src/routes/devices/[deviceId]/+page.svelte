@@ -1,34 +1,62 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import type { Image } from '$lib/types';
+	import { bufferToBase64 } from '$lib/utils';
 
+	let deviceId: string = page.params.deviceId;
 	let activeImage: string = '';
-	let images: string[] = [];
+	let images: Image[] = [];
 
 	async function fetchDeviceData() {
+		console.log("Fetching device data");
 		const token = localStorage.getItem('authToken');
-		const response = await fetch('/api/devices/active', {
+		const response = await fetch(`/api/devices/${deviceId}`, {
 			headers: { Authorization: `Bearer ${token}` }
 		});
 		if (response.ok) {
 			const data = await response.json();
-			activeImage = data.activeImage;
-			images = data.images;
+			let activeImageId = data.active_image;
+			if(activeImageId) {
+				const imageResponse = await fetch(`/api/users/images/${activeImageId}`, {
+					headers: { Authorization: `Bearer ${token}` }
+				});
+				if (imageResponse.ok) {
+					const imageData = await imageResponse.json();
+					activeImage = `data:image/png;base64,${bufferToBase64(imageData.image_data)}`;
+				} else {
+					alert('Failed to fetch active image data');
+				}
+			}
 		} else {
 			alert('Failed to fetch device data');
 		}
 	}
 
-	async function setActiveImage(imageId: string) {
+	async function fetchUserImages() {
+		console.log("Fetching user images");
 		const token = localStorage.getItem('authToken');
-		const response = await fetch('/api/devices/active', {
+		const response = await fetch('/api/users/images', {
+			headers: { Authorization: `Bearer ${token}` }
+		});
+		if (response.ok) {
+			images = await response.json();
+		} else {
+			alert('Failed to fetch user images');
+		}
+	}
+
+	async function setActiveImage(imageId: string) {
+		console.log("Set active image to", imageId);
+		const token = localStorage.getItem('authToken');
+		const response = await fetch(`/api/devices/${deviceId}/activeImage`, {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
 			body: JSON.stringify({ imageId })
 		});
 		if (response.ok) {
-			activeImage = imageId;
+			fetchDeviceData();
 		} else {
 			alert('Failed to set active image');
 		}
@@ -46,22 +74,27 @@
 				body: formData
 			});
 			if (response.ok) {
-				await fetchDeviceData();
+				await fetchUserImages();
 			} else {
 				alert('Failed to upload image');
 			}
 		}
 	}
 
-	onMount(fetchDeviceData);
+	onMount(async () => {
+		await fetchUserImages();
+		await fetchDeviceData();
+	});
 </script>
 
 <main>
 	<h1>Device Home</h1>
 	<section>
-		<h2>Active Image</h2>
+		<h2>Device Information</h2>
+		<p>Device ID: {deviceId}</p>
 		{#if activeImage}
-			<img src={activeImage} alt="Active Image" />
+			<p>Active Image:</p>
+			<img src={activeImage} alt="" />
 		{:else}
 			<p>No active image</p>
 		{/if}
@@ -76,8 +109,8 @@
 		<h2>Image Gallery</h2>
 		<div class="grid">
 			{#each images as image}
-				<button type="button" on:click={() => setActiveImage(image)}>
-					<img src={image} alt="" />
+				<button type="button" on:click={() => setActiveImage(image.id.toString())}>
+					<img src={`data:image/png;base64,${bufferToBase64(image.image_data)}`} alt="" />
 				</button>
 			{/each}
 		</div>
@@ -101,8 +134,5 @@
 		display: grid;
 		grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
 		gap: 1rem;
-	}
-	input[type="file"] {
-		margin-top: 1rem;
 	}
 </style>
