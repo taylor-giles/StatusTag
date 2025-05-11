@@ -1,7 +1,6 @@
 import { json } from '@sveltejs/kit';
 import db from '$lib/server/db';
-import bcrypt from 'bcrypt';
-import { v4 as uuidv4 } from 'uuid';
+import { verifyPassword, generateSessionToken } from '$lib/server/auth';
 import type { User } from '$lib/types';
 
 export async function POST({ request }: { request: Request }) {
@@ -14,14 +13,13 @@ export async function POST({ request }: { request: Request }) {
 	}
 
 	// Verify the password
-	const validPassword = await bcrypt.compare(password, user.password_hash);
+	const validPassword = await verifyPassword(password, user.password_hash);
 	if (!validPassword) {
 		return json({ error: 'Invalid credentials' }, { status: 401 });
 	}
 
 	// Generate a session token
-	const token = uuidv4();
-	db.prepare('INSERT INTO sessions (token, username) VALUES (?, ?)').run(token, username);
+	const token = generateSessionToken(username);
 
 	return json({ token });
 }

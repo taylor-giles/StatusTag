@@ -1,21 +1,30 @@
-import type { Device } from '$lib/types';
-import db from '$lib/server/db';
 import { json } from '@sveltejs/kit';
+import db from '$lib/server/db';
+import { validateRequest } from '$lib/server/auth';
 
-export async function GET({ params }: { params: { userId: string } }) {
-	const devices: Device[] = db.prepare(`
+export async function GET({ request }: { request: Request }) {
+	const userId = validateRequest(request);
+	if (!userId) {
+		return json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
+	const devices = db.prepare(`
 		SELECT d.* 
 		FROM devices d
 		JOIN user_devices ud ON d.id = ud.device_id
 		WHERE ud.user_id = ?
-	`).all(params.userId) as Device[];
-	console.log("Devices: ", devices);
+	`).all(userId);
+
 	return json(devices);
 }
 
 export async function POST({ request }: { request: Request }) {
-	const { userId, deviceId } = await request.json();
-	console.log("POST request to add device: ", { userId, deviceId });
+	const userId = validateRequest(request);
+	if (!userId) {
+		return json({ error: 'Unauthorized' }, { status: 401 });
+	}
+
+	const { deviceId } = await request.json();
 
 	// Check if the device already exists
 	const deviceExists = db.prepare('SELECT 1 FROM devices WHERE id = ?').get(deviceId);
