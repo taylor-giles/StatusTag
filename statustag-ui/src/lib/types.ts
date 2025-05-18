@@ -6,6 +6,8 @@ export type User = {
 export type Device = {
 	id: string;
 	active_image: number | null;
+	screen_length: number;
+	screen_height: number;
 };
 
 export type Image = {

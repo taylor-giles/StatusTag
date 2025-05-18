@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS devices (
 	id TEXT PRIMARY KEY,
 	active_image INTEGER,
+	screen_length INTEGER NOT NULL,
+	screen_height INTEGER NOT NULL,
 	FOREIGN KEY (active_image) REFERENCES images (id)
 );
 

@@ -24,13 +24,14 @@ export async function POST({ request }: { request: Request }) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const { deviceId } = await request.json();
+	const { deviceId, screen_length, screen_height } = await request.json();
 
 	// Check if the device already exists
 	const deviceExists = db.prepare('SELECT 1 FROM devices WHERE id = ?').get(deviceId);
 	if (!deviceExists) {
-		// Insert the new device
-		db.prepare('INSERT INTO devices (id, active_image) VALUES (?, NULL)').run(deviceId);
+		// Insert the new device with resolution properties
+		db.prepare('INSERT INTO devices (id, active_image, screen_length, screen_height) VALUES (?, NULL, ?, ?)')
+		  .run(deviceId, screen_length, screen_height);
 	}
 
 	// Associate the device with the user

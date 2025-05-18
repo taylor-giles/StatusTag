@@ -1,82 +1,93 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
-	import { goto } from '$app/navigation';
-	import { page } from '$app/state';
-	import type { Image } from '$lib/types';
-	import { bufferToBase64 } from '$lib/utils';
+	import { onMount } from "svelte";
+	import { goto } from "$app/navigation";
+	import { page } from "$app/state";
+	import type { Device, Image } from "$lib/types";
+	import { bufferToBase64, prepareImage, resizeImage } from "$lib/utils";
 
 	let deviceId: string = page.params.deviceId;
-	let activeImage: string = '';
+	let deviceData: Device;
+	let activeImage: string = "";
 	let images: Image[] = [];
 
 	async function fetchDeviceData() {
 		console.log("Fetching device data");
-		const token = localStorage.getItem('authToken');
+		const token = localStorage.getItem("authToken");
 		const response = await fetch(`/api/devices/${deviceId}`, {
-			headers: { Authorization: `Bearer ${token}` }
+			headers: { Authorization: `Bearer ${token}` },
 		});
+		deviceData = await response.json();
 		if (response.ok) {
-			const data = await response.json();
-			let activeImageId = data.active_image;
-			if(activeImageId) {
-				const imageResponse = await fetch(`/api/users/images/${activeImageId}`, {
-					headers: { Authorization: `Bearer ${token}` }
-				});
+			let activeImageId = deviceData.active_image;
+			if (activeImageId) {
+				const imageResponse = await fetch(
+					`/api/users/images/${activeImageId}`,
+					{
+						headers: { Authorization: `Bearer ${token}` },
+					},
+				);
 				if (imageResponse.ok) {
 					const imageData = await imageResponse.json();
-					activeImage = `data:image/png;base64,${bufferToBase64(imageData.image_data)}`;
+					activeImage = await prepareImage(
+						`data:image/unknown;base64,${imageData.image_data}`,
+						deviceData.screen_length,
+						deviceData.screen_height,
+					);
 				} else {
-					alert('Failed to fetch active image data');
+					alert("Failed to fetch active image");
 				}
 			}
 		} else {
-			alert('Failed to fetch device data');
+			alert("Failed to fetch device data");
 		}
 	}
 
 	async function fetchUserImages() {
 		console.log("Fetching user images");
-		const token = localStorage.getItem('authToken');
-		const response = await fetch('/api/users/images', {
-			headers: { Authorization: `Bearer ${token}` }
+		const token = localStorage.getItem("authToken");
+		const response = await fetch("/api/users/images", {
+			headers: { Authorization: `Bearer ${token}` },
 		});
 		if (response.ok) {
 			images = await response.json();
 		} else {
-			alert('Failed to fetch user images');
+			alert("Failed to fetch user images");
 		}
 	}
 
 	async function setActiveImage(imageId: string) {
 		console.log("Set active image to", imageId);
-		const token = localStorage.getItem('authToken');
+		const token = localStorage.getItem("authToken");
 		const response = await fetch(`/api/devices/${deviceId}/activeImage`, {
-			method: 'POST',
-			headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-			body: JSON.stringify({ imageId })
+			method: "POST",
+			headers: {
+				"Content-Type": "application/json",
+				Authorization: `Bearer ${token}`,
+			},
+			body: JSON.stringify({ imageId }),
 		});
 		if (response.ok) {
 			fetchDeviceData();
 		} else {
-			alert('Failed to set active image');
+			alert("Failed to set active image");
 		}
 	}
 
 	async function uploadImage(event: Event) {
-		const token = localStorage.getItem('authToken');
+		const token = localStorage.getItem("authToken");
 		const file = (event.target as HTMLInputElement).files?.[0];
 		if (file) {
 			const formData = new FormData();
-			formData.append('image', file);
-			const response = await fetch('/api/users/images', {
-				method: 'POST',
+			formData.append("image", file);
+			const response = await fetch("/api/users/images", {
+				method: "POST",
 				headers: { Authorization: `Bearer ${token}` },
-				body: formData
+				body: formData,
 			});
 			if (response.ok) {
 				await fetchUserImages();
 			} else {
-				alert('Failed to upload image');
+				alert("Failed to upload image");
 			}
 		}
 	}
@@ -108,11 +119,18 @@
 	<section>
 		<h2>Image Gallery</h2>
 		<div class="grid">
-			{#each images as image}
-				<button type="button" on:click={() => setActiveImage(image.id.toString())}>
-					<img src={`data:image/png;base64,${bufferToBase64(image.image_data)}`} alt="" />
-				</button>
-			{/each}
+			{#if images && images.length > 0 && deviceData}
+				{#each images as image}
+					{#await prepareImage(`data:image/unknown;base64,${image.image_data}`, deviceData.screen_length, deviceData.screen_height) then imageSrc}
+											<button
+						type="button"
+						on:click={() => setActiveImage(image.id.toString())}
+					>
+						<img src={imageSrc} alt="" />
+					</button>
+					{/await}
+				{/each}
+			{/if}
 		</div>
 	</section>
 </main>
