@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import db from '$lib/server/db';
+import { getUserByUsername } from '$lib/server/db';
 import { verifyPassword, generateSessionToken } from '$lib/server/auth';
 import type { User } from '$lib/types';
 
@@ -7,7 +7,7 @@ export async function POST({ request }: { request: Request }) {
 	const { username, password } = await request.json();
 
 	// Check if the user exists
-	const user = db.prepare('SELECT * FROM users WHERE username = ?').get(username) as User;
+	const user = getUserByUsername(username) as User;
 	if (!user) {
 		return json({ error: 'Invalid credentials' }, { status: 401 });
 	}

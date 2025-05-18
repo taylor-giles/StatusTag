@@ -1,5 +1,5 @@
 import { json } from '@sveltejs/kit';
-import db from '$lib/server/db';
+import db, { getDeviceForUser } from '$lib/server/db';
 import { validateRequest } from '$lib/server/auth';
 
 export async function GET({ request, params }: { request: Request; params: { deviceId: string } }) {
@@ -8,9 +8,7 @@ export async function GET({ request, params }: { request: Request; params: { dev
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const device = db.prepare(
-		'SELECT * FROM devices WHERE id = ? AND id IN (SELECT device_id FROM user_devices WHERE user_id = ?)'
-	).get(params.deviceId, userId);
+	const device = getDeviceForUser(params.deviceId, userId);
 
 	if (!device) {
 		return json({ error: 'Device not found' }, { status: 404 });

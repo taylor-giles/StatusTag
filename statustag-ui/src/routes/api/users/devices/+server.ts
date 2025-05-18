@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
-import db from '$lib/server/db';
 import { validateRequest } from '$lib/server/auth';
+import { getDevicesForUser, deviceExists, insertDevice, registerDevice } from '$lib/server/db';
 
 export async function GET({ request }: { request: Request }) {
 	const userId = validateRequest(request);
@@ -8,13 +8,7 @@ export async function GET({ request }: { request: Request }) {
 		return json({ error: 'Unauthorized' }, { status: 401 });
 	}
 
-	const devices = db.prepare(`
-		SELECT d.* 
-		FROM devices d
-		JOIN user_devices ud ON d.id = ud.device_id
-		WHERE ud.user_id = ?
-	`).all(userId);
-
+	const devices = getDevicesForUser(userId);
 	return json(devices);
 }
 
@@ -26,16 +20,8 @@ export async function POST({ request }: { request: Request }) {
 
 	const { deviceId, screen_length, screen_height } = await request.json();
 
-	// Check if the device already exists
-	const deviceExists = db.prepare('SELECT 1 FROM devices WHERE id = ?').get(deviceId);
-	if (!deviceExists) {
-		// Insert the new device with resolution properties
-		db.prepare('INSERT INTO devices (id, active_image, screen_length, screen_height) VALUES (?, NULL, ?, ?)')
-		  .run(deviceId, screen_length, screen_height);
-	}
+	insertDevice(deviceId, screen_length, screen_height);
 
-	// Associate the device with the user
-	db.prepare('INSERT OR IGNORE INTO user_devices (user_id, device_id) VALUES (?, ?)').run(userId, deviceId);
-
+	registerDevice(userId, deviceId);
 	return json({ success: true });
 }
