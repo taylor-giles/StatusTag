@@ -3,7 +3,6 @@
 	import { goto } from "$app/navigation";
 	import { page } from "$app/state";
 	import type { Device, Image } from "$lib/types";
-	import { bufferToBase64, prepareImage, resizeImage } from "$lib/utils";
 
 	let deviceId: string = page.params.deviceId;
 	let deviceData: Device;
@@ -28,11 +27,7 @@
 				);
 				if (imageResponse.ok) {
 					const imageData = await imageResponse.json();
-					activeImage = await prepareImage(
-						`data:image/unknown;base64,${imageData.image_data}`,
-						deviceData.screen_length,
-						deviceData.screen_height,
-					);
+					activeImage = `data:image/unknown;base64,${imageData.image_data}`;
 				} else {
 					alert("Failed to fetch active image");
 				}
@@ -105,7 +100,11 @@
 		<p>Device ID: {deviceId}</p>
 		{#if activeImage}
 			<p>Active Image:</p>
-			<img src={activeImage} alt="" />
+			<img
+				style={`width: ${deviceData.screen_length}px; height: ${deviceData.screen_height}px;`}
+				src={activeImage}
+				alt=""
+			/>
 		{:else}
 			<p>No active image</p>
 		{/if}
@@ -121,14 +120,16 @@
 		<div class="grid">
 			{#if images && images.length > 0 && deviceData}
 				{#each images as image}
-					{#await prepareImage(`data:image/unknown;base64,${image.image_data}`, deviceData.screen_length, deviceData.screen_height) then imageSrc}
-											<button
+					<button
 						type="button"
 						on:click={() => setActiveImage(image.id.toString())}
 					>
-						<img src={imageSrc} alt="" />
+						<img
+							style={`width: ${deviceData.screen_length}px; height: ${deviceData.screen_height}px;`}
+							src={`data:image/unknown;base64,${image.image_data}`}
+							alt=""
+						/>
 					</button>
-					{/await}
 				{/each}
 			{/if}
 		</div>
@@ -147,6 +148,7 @@
 		border: 1px solid #ccc;
 		border-radius: 4px;
 		cursor: pointer;
+		object-fit: cover;
 	}
 	.grid {
 		display: grid;

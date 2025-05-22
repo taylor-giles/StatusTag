@@ -73,17 +73,17 @@ export async function coverGif(gifBuffer: Buffer, width: number, height: number)
     return await expandGif(gifBuffer).then(doCover);
 }
 
-// Converts a color table (array of [r,g,b] arrays) to RGB565 format
-export function convertColorTable(colorTable: [number, number, number][]): number[] {
-    // Each color is [r, g, b] (0-255)
-    // RGB565: 5 bits red, 6 bits green, 5 bits blue
-    return colorTable.map(([r, g, b]) => {
-        const r5 = (r >> 3) & 0x1F;
-        const g6 = (g >> 2) & 0x3F;
-        const b5 = (b >> 3) & 0x1F;
-        // Pack into 16 bits: rrrrrggggggbbbbb
-        return (r5 << 11) | (g6 << 5) | b5;
-    });
+/**
+ * Crops and resizes an image to the specified dimensions, focusing on the center.
+ * @param image - The input image buffer.
+ * @param height - The desired height in pixels.
+ * @param width - The desired width in pixels.
+ * @returns The cropped and resized image as a buffer.
+ */
+export async function coverImage(image: Buffer, width: number, height: number): Promise<Buffer> {
+    const jimpImage = await Jimp.read(image);
+    jimpImage.cover({w: width, h: height});
+    return jimpImage.getBuffer("image/png");
 }
 
 /**
@@ -97,15 +97,18 @@ export async function getGifPatches(gifBuffer: Buffer, batchSize: number = 2500)
     const arrayBuffer = gifBuffer.buffer.slice(gifBuffer.byteOffset, gifBuffer.byteOffset + gifBuffer.byteLength);
     const ab = arrayBuffer instanceof ArrayBuffer ? arrayBuffer : new Uint8Array(arrayBuffer).buffer;
     const gif = parseGIF(ab as ArrayBuffer);
-    const frames = decompressFrames(gif, true);
+    const frames = decompressFrames(gif, false); // Use false to get color indexes, not RGBA
 
-    const gct = convertColorTable(gif.gct)
+    const gct = convertColorTable(gif.gct);
     const patches: (Uint16Array | number)[] = [];
 
     for (const frame of frames) {
-        let colorTable = frame.colorTable == gif.gct ? gct : convertColorTable(frame.colorTable);
+        // Use the correct color table for this frame
+        let colorTable = frame.colorTable !== gif.gct ? convertColorTable(frame.colorTable) : gct;
         let rowsPerBatch = Math.floor(batchSize / (frame.dims.width * 2));
         let remainingRows = frame.dims.height;
+        let patchIdx = 0;
+        patches.push(frame.delay);
         while (remainingRows > 0) {
             const rows = Math.min(rowsPerBatch, remainingRows);
             const patchData = new Uint16Array(frame.dims.width * rows + 4);
@@ -114,12 +117,13 @@ export async function getGifPatches(gifBuffer: Buffer, batchSize: number = 2500)
             patchData[2] = frame.dims.width;
             patchData[3] = rows;
             for (let i = 0; i < frame.dims.width * rows; i++) {
-                patchData[i + 4] = colorTable[frame.patch[i]];
+                // Use the color index from the frame's pixels array
+                const colorIdx = frame.pixels[patchIdx++];
+                patchData[i + 4] = colorIdx === frame.transparentIndex ? 0xFFFE : colorTable[colorIdx];
             }
             patches.push(patchData);
             remainingRows -= rows;
         }
-        patches.push(frame.delay);
     }
     return patches;
 }
@@ -132,24 +136,67 @@ export async function getGifPatches(gifBuffer: Buffer, batchSize: number = 2500)
  */
 export async function getImagePatches(imageBuffer: Buffer, batchSize: number = 2500): Promise<(Uint16Array | number)[]> {
     console.log("Calculating image patches");
-    const imageData = new Uint16Array(imageBuffer.length / 2 + 4);
+    const image = await Jimp.read(imageBuffer);
+    const { width, height, data } = image.bitmap; // data is a Uint8Array of RGBA values
     const patches: (Uint16Array | number)[] = [];
-    let dims = await getImageDimensions(imageBuffer);
-    let rowsPerBatch = Math.floor(batchSize / (dims.width * 2));
-    let remainingRows = dims.height;
+    let rowsPerBatch = Math.floor(batchSize / (width * 2));
+    let remainingRows = height;
     while (remainingRows > 0) {
         const rows = Math.min(rowsPerBatch, remainingRows);
-        const patchData = new Uint16Array(dims.width * rows + 4);
+        const patchData = new Uint16Array(width * rows + 4);
         patchData[0] = 0;
-        patchData[1] = (dims.height - remainingRows);
-        patchData[2] = dims.width;
+        patchData[1] = (height - remainingRows);
+        patchData[2] = width;
         patchData[3] = rows;
-        for (let i = 0; i < dims.width * rows; i++) {
-            patchData[i + 4] = imageData[i];
+        for (let row = 0; row < rows; row++) {
+            for (let col = 0; col < width; col++) {
+                const idx = ((height - remainingRows + row) * width + col) * 4;
+                const r = data[idx];
+                const g = data[idx + 1];
+                const b = data[idx + 2];
+                patchData[row * width + col + 4] = rgbToRgb565(r, g, b);
+            }
         }
         patches.push(patchData);
         remainingRows -= rows;
     }
-    patches.push(60000);
+    patches.push(1000);
     return patches;
+}
+
+/**
+ * Prepares a list of patches for an image
+ * @param buffer - The image to slice, as a buffer.
+ * @param height - The desired height in pixels.
+ * @param width - The desired width in pixels.
+ * @returns The resized image as a Base64 string.
+ */
+export async function getPatches(buffer: Buffer, width: number, height: number, batchSize?: number): Promise<(Uint16Array | number)[]> {
+    if (isGif(buffer)) {
+        return getGifPatches(await coverGif(buffer, width, height), batchSize);
+    } else {
+        return getImagePatches(await coverImage(buffer, width, height), batchSize);
+    }
+}
+
+// Returns true iff the given buffer represents a GIF
+export function isGif(buffer: Buffer): boolean {
+    const header = buffer.toString('base64').substring(0, 30);
+    return header.includes("R0lGODlh") || header.includes("R0lGODdj");
+}
+
+// Converts a color table (array of [r,g,b] arrays) to RGB565 format
+export function convertColorTable(colorTable: [number, number, number][]): number[] {
+    return colorTable.map(([r, g, b]) => rgbToRgb565(r, g, b));
+}
+
+export function rgbToRgb565(r: number, g: number, b: number): number {
+    const color = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3); // RGB565
+    let result = ((color & 0xFF) << 8) | (color >> 8); // Swap bytes
+
+    // 0xFFFE is used as a transparency indicator - replace it with something close
+    if (result == 0xFFFE) {
+        result = 0xFFFF;
+    }
+    return result;
 }

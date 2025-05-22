@@ -78,6 +78,10 @@ export function getDeviceForUser(deviceId: string, userId: string) {
     return db.prepare('SELECT * FROM devices WHERE id = ? AND id IN (SELECT device_id FROM user_devices WHERE user_id = ?)')
         .get(deviceId, userId);
 }
+export function getActiveImageForDevice(deviceId: string) {
+    const row = db.prepare('SELECT images.image_data FROM devices JOIN images ON devices.active_image = images.id WHERE devices.id = ?').get(deviceId) as { image_data?: Buffer } | undefined;
+    return row && row.image_data ? row.image_data : null;
+}
 
 // Image-related DB functions
 export function getImagesForUser(userId: string) {
