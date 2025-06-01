@@ -3,7 +3,8 @@
 #include <ESP8266WiFi.h>
 #include <WebSocketsClient.h>   //Requires WebSockets library by Markus Sattler
 #include <LovyanGFX.hpp>
-#include <FS.h>
+#include <AnimatedGIF.h>
+#include <LittleFS.h>
 
 class LGFX_ST7735 : public lgfx::LGFX_Device {
   lgfx::Panel_ST7735S _panel_instance;
@@ -44,7 +45,7 @@ public:
       cfg.dummy_read_bits  = 1;
       cfg.readable         = false;
       cfg.invert           = false;   // Change to false if colors look inverted
-      cfg.rgb_order        = 1;      // 0 = RGB, 1 = BGR
+      cfg.rgb_order        = 1;
       cfg.bus_shared       = false;
 
       _panel_instance.config(cfg);
@@ -55,22 +56,27 @@ public:
 };
 
 LGFX_ST7735 tft;
-
-// Device properties
-// #define ID "finally"
-// #define WIDTH 128
-// #define HEIGHT 160
-// #define BUFFER_SIZE 2000
-
-// #define WS_PATH TOSTRING("/ws?id=" ID "&width=" TOSTRING(WIDTH) "&height=" TOSTRING(HEIGHT) "&bufferSize=" TOSTRING(BUFFER_SIZE))
+AnimatedGIF gif;
 
 // Incoming message types
-#define DATA_MSG 1
-#define DELAY_MSG 2
+#define NEW_MSG 1
+#define GIF_MSG 2
 #define EOF_MSG 3
+#define IMG_MSG 4
 
 // Pins
 #define ONBOARD_LED 2
+
+// Macros
+#define STR_HELPER(x) #x
+#define STR(x) STR_HELPER(x)
+
+// Constants
+#define ID "finally"
+#define WIDTH 128
+#define HEIGHT 160
+#define BUFFER_SIZE 10000
+#define WS_PATH "/ws?id=" ID "&width=" STR(WIDTH) "&height=" STR(HEIGHT) "&bufferSize=" STR(BUFFER_SIZE)
 
 //WiFi/WS connection vars
 WebSocketsClient webSocket;
@@ -78,49 +84,34 @@ const char *ssid     = "***REMOVED***";                   //REPLACE WITH YOUR SS
 const char *password = "***REMOVED***";                   //REPLACE WITH YOUR WIFI PASS
 const char* WS_HOST = "***REMOVED***";   //REPLACE WITH YOUR WS HOST
 const int   WS_PORT = 8080;                        //REPLACE WITH YOUR WS PORT
-const char* WS_PATH = "/ws?id=finally&width=128&height=160&bufferSize=8000000";
-const char* DISPLAY_ID = "6366198fcb26bf86050e4ea8";                   //REPLACE WITH YOUR DEVICE ID
 bool connected = false;
+uint16_t seqnum = 0;
 
 //Display vars
-uint16_t currentDelay = 0;
-long frameStartTime = 0;
-bool readyForNextPatch = true;
-uint16_t seqnum = 0;
- 
-// Macros
-#define DEBUG_SERIAL Serial
+File gifFile;
+const char* GIF_FILE_NAME = "/gif.gif";
+bool isGifFileOpen = false;
+bool isGifActive = false;
+bool loadingData = false;
+bool readyForNextPacket = false;
 
 void setup() {
     tft.init();
-    DEBUG_SERIAL.begin(115200);
-    DEBUG_SERIAL.println(WS_PATH);
-    Serial.println(ESP.getFreeHeap());
-    if (!SPIFFS.begin()) {
-      Serial.println("Failed to mount SPIFFS");
+    Serial.begin(115200);
+    Serial.println(WS_PATH);
+    if (!LittleFS.begin()) {
+      Serial.println("Failed to mount LittleFS");
       return;
     }
-
-    FSInfo fs_info;
-    SPIFFS.info(fs_info);
-
-    Serial.print("Total SPIFFS bytes: ");
-    Serial.println(fs_info.totalBytes);
-
-    Serial.print("Used SPIFFS bytes: ");
-    Serial.println(fs_info.usedBytes);
-
-    Serial.print("Free SPIFFS bytes: ");
-    Serial.println(fs_info.totalBytes - fs_info.usedBytes);
     
     pinMode(ONBOARD_LED, OUTPUT);
     
     for(uint8_t t = 3; t > 0; t--) {
-        DEBUG_SERIAL.printf("[SETUP] BOOT WAIT %d...\n", t);
-        DEBUG_SERIAL.flush();
+        Serial.printf("[SETUP] BOOT WAIT %d...\n", t);
+        Serial.flush();
         delay(1000);
     }
-    DEBUG_SERIAL.println(WiFi.macAddress());
+    Serial.println(WiFi.macAddress());
 
     //Connect to WiFi
     WiFi.begin(ssid, password);
@@ -128,63 +119,213 @@ void setup() {
       delay(500);
       Serial.print(".");
     }
-    DEBUG_SERIAL.print("Local IP: "); DEBUG_SERIAL.println(WiFi.localIP());
+    Serial.print("Local IP: "); Serial.println(WiFi.localIP());
     delay(50);
 
     //Set up web socket connection
     webSocket.begin(WS_HOST, WS_PORT, WS_PATH);
     webSocket.onEvent(webSocketEvent);
+
+    gif.begin(BIG_ENDIAN_PIXELS);
 }
 
 
 void loop() {
   webSocket.loop();
-  if(connected && readyForNextPatch && (seqnum == 0 || millis() > frameStartTime + currentDelay)){
-    readyForNextPatch = false;
-    frameStartTime = millis();
+  if(isGifActive && !isGifFileOpen && !loadingData){
+    if(gif.open(GIF_FILE_NAME, GIFOpenFile, GIFCloseFile, GIFReadFile, GIFSeekFile, GIFDraw)){
+      while(gif.playFrame(true, NULL)) {
+        yield();
+      }    
+      gif.close();
+    } else {
+      Serial.println("ERROR: Failed to load GIF file");
+    }
+  }
+
+  if(connected && loadingData && readyForNextPacket){
+    readyForNextPacket = false;
     webSocket.sendBIN((uint8_t*)&seqnum, sizeof(seqnum));
   }
 }
 
-
 void webSocketEvent(WStype_t type, uint8_t* payload, size_t length) {
-  int numBytesRead = 0;
   switch(type) {
     case WStype_DISCONNECTED:
-      DEBUG_SERIAL.printf("[WS] Disconnected!\n");
+      Serial.printf("[WS] Disconnected!\n");
       connected = false;
+      loadingData = false;
       break;
     case WStype_CONNECTED: 
-      DEBUG_SERIAL.printf("[WS] Connected to url: %s\n", payload);
+      Serial.printf("[WS] Connected to url: %s\n", payload);
       connected = true;
       seqnum = 0;
-      readyForNextPatch = true;
       break;
         
     case WStype_TEXT:
-      DEBUG_SERIAL.printf("[WS] Received text: %s\n", payload);
+      Serial.printf("[WS] Received text: %s\n", payload);
       break;
         
     case WStype_BIN:
       uint16_t* msgData = (uint16_t*)payload;
       seqnum++;
-      readyForNextPatch = true;
 
       // First 2 bytes are msg type
       uint16_t msgType = msgData[0];
 
       // Handle message
       switch(msgType){
-        case DATA_MSG:
-          tft.pushImage(msgData[1], msgData[2], msgData[3], msgData[4], msgData + 5, 0xFFFE);
+        case NEW_MSG:
+          Serial.println("New image/gif data is available!");
+          seqnum = 0;
+          loadingData = true;
           break;
-        case DELAY_MSG:
-          currentDelay = msgData[1];
+        case GIF_MSG:
+          openGifFile();
+          Serial.printf("Writing %d bytes to GIF file\n", length);
+          gifFile.write(payload + 2, length - 2);
+          isGifActive = true;
+          break;
+        case IMG_MSG:
+          Serial.println("Processing image data");
+          tft.pushImage(msgData[1], msgData[2], msgData[3], msgData[4], msgData + 5);
+          isGifActive = false;
           break;
         case EOF_MSG:
-          seqnum = 0;
+          Serial.println("Finished processing new data.");
+          loadingData = false;
+          closeGifFile();
           break;
+        default:
+          Serial.printf("Unrecognized message type %d\n", msgType);
       }
+      readyForNextPacket = true;
       break;
+  }
+}
+
+void openGifFile(){
+  if(!isGifFileOpen){
+    clearGifFile();
+    gifFile = LittleFS.open(GIF_FILE_NAME, "a");
+    isGifFileOpen = true;
+  }
+}
+
+void closeGifFile(){
+  Serial.println("Closing GIF file");
+  if(isGifFileOpen){
+    gifFile.close();
+    isGifFileOpen = false;
+  }
+}
+
+void clearGifFile() {
+  Serial.println("Clearing GIF file");
+  closeGifFile();
+  LittleFS.remove(GIF_FILE_NAME);
+}
+
+
+///////////////////////////
+// AnimatedGIF Callbacks //
+///////////////////////////
+void* GIFOpenFile(const char *filename, int32_t *pSize){
+  gifFile = LittleFS.open(filename, "r");
+  *pSize = gifFile.size();
+  return (void*)&gifFile;
+}
+
+void GIFCloseFile(void *pHandle) {
+  File *f = static_cast<File *>(pHandle);
+  if (f != NULL)
+     f->close();
+}
+
+int32_t GIFReadFile(GIFFILE *pFile, uint8_t *pBuf, int32_t iLen) {
+    int32_t iBytesRead;
+    iBytesRead = iLen;
+    File *f = static_cast<File *>(pFile->fHandle);
+    // Note: If you read a file all the way to the last byte, seek() stops working
+    if ((pFile->iSize - pFile->iPos) < iLen)
+       iBytesRead = pFile->iSize - pFile->iPos - 1; // <-- ugly work-around
+    if (iBytesRead <= 0)
+       return 0;
+    iBytesRead = (int32_t)f->read(pBuf, iBytesRead);
+    pFile->iPos = f->position();
+    return iBytesRead;
+}
+
+int32_t GIFSeekFile(GIFFILE *pFile, int32_t iPosition) {
+  File *f = static_cast<File *>(pFile->fHandle);
+  f->seek(iPosition);
+  pFile->iPos = (int32_t)f->position();
+  return pFile->iPos;
+}
+
+void GIFDraw(GIFDRAW *pDraw)
+{
+  uint8_t *s;
+  uint16_t *d, *usPalette, usTemp[320];
+  int x, y, iWidth;
+
+  iWidth = pDraw->iWidth;
+  if (iWidth > 128)
+      iWidth = 128;
+  usPalette = pDraw->pPalette;
+  y = pDraw->iY + pDraw->y; // current line
+
+  s = pDraw->pPixels;
+  if (pDraw->ucDisposalMethod == 2) {// restore to background color
+    for (x=0; x<iWidth; x++) {
+      if (s[x] == pDraw->ucTransparent)
+          s[x] = pDraw->ucBackground;
+    }
+    pDraw->ucHasTransparency = 0;
+  }
+  // Apply the new pixels to the main image
+  if (pDraw->ucHasTransparency) { // if transparency used
+    uint8_t *pEnd, c, ucTransparent = pDraw->ucTransparent;
+    int x, iCount;
+    pEnd = s + iWidth;
+    x = 0;
+    iCount = 0; // count non-transparent pixels
+    while(x < iWidth) {
+      c = ucTransparent-1;
+      d = usTemp;
+      while (c != ucTransparent && s < pEnd) {
+        c = *s++;
+        if (c == ucTransparent) { // done, stop
+          s--; // back up to treat it like transparent
+        } else { // opaque
+            *d++ = usPalette[c];
+            iCount++;
+        }
+      } // while looking for opaque pixels
+      if (iCount) { // any opaque pixels?
+        tft.pushRect(pDraw->iX+x, y, iCount, 1, (uint16_t*)usTemp );
+        x += iCount;
+        iCount = 0;
+      }
+      // no, look for a run of transparent pixels
+      c = ucTransparent;
+      while (c == ucTransparent && s < pEnd) {
+        c = *s++;
+        if (c == ucTransparent)
+            iCount++;
+        else
+            s--;
+      }
+      if (iCount) {
+        x += iCount; // skip these
+        iCount = 0;
+      }
+    }
+  } else {
+    s = pDraw->pPixels;
+    // Translate the 8-bit pixels through the RGB565 palette (already byte reversed)
+    for (x=0; x<iWidth; x++)
+      usTemp[x] = usPalette[*s++];
+    tft.pushRect(pDraw->iX, y, iWidth, 1, (uint16_t*)usTemp );
   }
 }

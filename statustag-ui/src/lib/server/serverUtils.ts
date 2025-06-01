@@ -134,12 +134,13 @@ export async function getGifPatches(gifBuffer: Buffer, batchSize: number = 2500)
  * @param batchSize - The maximum size of each batch, in bytes.
  * @returns A list of patches, each represented as a Uint16Array, separated by the delay (time to show that patch)
  */
-export async function getImagePatches(imageBuffer: Buffer, batchSize: number = 2500): Promise<(Uint16Array | number)[]> {
+export async function getImagePatches(imageBuffer: Buffer, batchSize: number = 2500): Promise<Uint16Array[]> {
     console.log("Calculating image patches");
     const image = await Jimp.read(imageBuffer);
     const { width, height, data } = image.bitmap; // data is a Uint8Array of RGBA values
-    const patches: (Uint16Array | number)[] = [];
-    let rowsPerBatch = Math.floor(batchSize / (width * 2));
+    const patches: Uint16Array[] = [];
+    let rowsPerBatch = Math.max(1, Math.floor((batchSize-8) / (width * 2)));
+    console.log("Width:", width, "Height:", height, "Batch Size:", batchSize, "Rows per batch:", rowsPerBatch);
     let remainingRows = height;
     while (remainingRows > 0) {
         const rows = Math.min(rowsPerBatch, remainingRows);
@@ -160,23 +161,7 @@ export async function getImagePatches(imageBuffer: Buffer, batchSize: number = 2
         patches.push(patchData);
         remainingRows -= rows;
     }
-    patches.push(1000);
     return patches;
-}
-
-/**
- * Prepares a list of patches for an image
- * @param buffer - The image to slice, as a buffer.
- * @param height - The desired height in pixels.
- * @param width - The desired width in pixels.
- * @returns The resized image as a Base64 string.
- */
-export async function getPatches(buffer: Buffer, width: number, height: number, batchSize?: number): Promise<(Uint16Array | number)[]> {
-    if (isGif(buffer)) {
-        return getGifPatches(await coverGif(buffer, width, height), batchSize);
-    } else {
-        return getImagePatches(await coverImage(buffer, width, height), batchSize);
-    }
 }
 
 // Returns true iff the given buffer represents a GIF

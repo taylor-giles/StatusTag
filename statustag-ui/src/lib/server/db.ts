@@ -79,8 +79,8 @@ export function getDeviceForUser(deviceId: string, userId: string) {
         .get(deviceId, userId);
 }
 export function getActiveImageForDevice(deviceId: string) {
-    const row = db.prepare('SELECT images.image_data FROM devices JOIN images ON devices.active_image = images.id WHERE devices.id = ?').get(deviceId) as { image_data?: Buffer } | undefined;
-    return row && row.image_data ? row.image_data : null;
+    const row = db.prepare('SELECT images.id as image_id, images.image_data FROM devices JOIN images ON devices.active_image = images.id WHERE devices.id = ?').get(deviceId) as { image_id?: number, image_data?: Buffer } | undefined;
+    return row && row.image_id && row.image_data ? { id: row.image_id, data: row.image_data } : null;
 }
 
 // Image-related DB functions
