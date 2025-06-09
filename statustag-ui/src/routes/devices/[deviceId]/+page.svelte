@@ -100,11 +100,11 @@
 		<p>Device ID: {deviceId}</p>
 		{#if activeImage}
 			<p>Active Image:</p>
-			<img
+			<div
 				style={`width: ${deviceData.screen_length}px; height: ${deviceData.screen_height}px;`}
-				src={activeImage}
-				alt=""
-			/>
+			>
+				<img src={activeImage} alt="" style="object-fit: cover; width: 100%; height: 100%;"/>
+			</div>
 		{:else}
 			<p>No active image</p>
 		{/if}
@@ -121,13 +121,15 @@
 			{#if images && images.length > 0 && deviceData}
 				{#each images as image}
 					<button
+						class="image-btn"
+						style="aspect-ratio: {deviceData.screen_length} / {deviceData.screen_height};"
 						type="button"
 						on:click={() => setActiveImage(image.id.toString())}
 					>
 						<img
-							style={`width: ${deviceData.screen_length}px; height: ${deviceData.screen_height}px;`}
 							src={`data:image/unknown;base64,${image.image_data}`}
 							alt=""
+							style="object-fit: cover; width: 100%; height: 100%;"
 						/>
 					</button>
 				{/each}
@@ -147,12 +149,26 @@
 		max-width: 100%;
 		border: 1px solid #ccc;
 		border-radius: 4px;
-		cursor: pointer;
 		object-fit: cover;
 	}
 	.grid {
 		display: grid;
-		grid-template-columns: repeat(auto-fill, minmax(100px, 1fr));
-		gap: 1rem;
+		grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+		gap: 10px;
+	}
+	.grid > * {
+		flex: 0 0 auto;
+	}
+	.grid button {
+		margin: 0;
+		padding: 0;
+		border: none;
+		background: none;
+		display: block;
+		width: 100%;
+		height: 100%;
+		box-sizing: border-box;
+		min-width: 10%;
+		cursor: pointer;
 	}
 </style>

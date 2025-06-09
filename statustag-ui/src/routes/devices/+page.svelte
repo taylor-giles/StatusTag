@@ -22,7 +22,7 @@
 		const response = await fetch('/api/users/devices', {
 			method: 'POST',
 			headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${token}` },
-			body: JSON.stringify({ deviceId: newDeviceId, screen_length: 800, screen_height: 600 })
+			body: JSON.stringify({ deviceId: newDeviceId })
 		});
 		if (response.ok) {
 			await fetchDevices();

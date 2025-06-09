@@ -1,12 +1,12 @@
 import { WebSocketServer, WebSocket } from 'ws';
 import url from 'url';
 import { IncomingMessage } from 'http';
-import { getActiveImageForDevice } from '$lib/server/db';
+import { getActiveImageForDevice, insertDevice } from '$lib/server/db';
 import { coverGif, coverImage, getImagePatches, isGif } from '$lib/server/serverUtils';
-import fs from 'fs';
 
 const PORT = 8080;
 const REFRESH_INTERVAL = 5000; // 5 seconds
+const PING_INTERVAL = 10000; // 10 seconds
 
 enum PatchType {
     NEW = 1,
@@ -53,9 +53,12 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
     appWs.connectionInfo = { id, width, height, bufferSize, maxFileSize };
 
     console.log('New connection:', { id, width, height, bufferSize, maxFileSize });
+    insertDevice(id, width, height);
 
+    // Continuously poll for updates to the active image, and inform device when image is updated
     const refresh = async () => {
         if(await refreshActiveImage((ws as AppWebSocket).connectionInfo)){
+            console.log("Image update detected for device:", id);
             const buf = Buffer.alloc(2);
             buf.writeUInt16LE(PatchType.NEW, 0);
             ws.send(buf);
@@ -66,46 +69,67 @@ wss.on('connection', (ws: WebSocket, req: IncomingMessage) => {
             }
         }
     }
-
     appWs.connectionInfo.refreshInterval = setInterval(refresh, REFRESH_INTERVAL);
     refresh();
 
+    // Messasge handling - all incoming messages should be a Uint16 seqnum (request for next patch)
     ws.on('message', async (message: Buffer) => {
-        console.log(`Received message from ${id}:`, message);
         try {
             if (message.length != 2) {
-                // All incoming messages should be a Uint16 seqnum
                 console.log(`Invalid message length: ${message.length}. Expected 2 bytes.`);
                 return;
             }
-            let seqNum = message.readUint16LE();
-            console.log(`Received request for seqnum: ${seqNum}`);
-
+            let seqnum = message.readUint16LE();
             if(!patchLists[id]) {
                 return;
             }
             let patches = patchLists[id];
-            if (patches.length > seqNum) {
-                console.log(`Sending patch of length: ${patches[seqNum].length}`);
-                ws.send(patches[seqNum]);
+            if (patches.length > seqnum) {
+                ws.send(patches[seqnum]);
             } else {
                 // EOF - End of File
                 const buf = Buffer.alloc(2);
                 buf.writeUInt16LE(PatchType.EOF, 0);
                 ws.send(buf);
+                console.log("Finished sending image data for device:", id);
             }
         } catch (error) {
             console.error('Error reading message:', error);
         }
     });
 
-    ws.on('close', () => {
-        console.log(`Connection closed for device ${id}`);
+    // WebSocket keepalive heartbeat
+    let isAlive = true;
+    ws.on('pong', () => {
+        isAlive = true;
+    });
+    const pingInterval = setInterval(() => {
+        if (!isAlive) {
+            console.log(`No heartbeat from device ${id}, terminating connection.`);
+            ws.terminate();
+            return;
+        }
+        isAlive = false;
+        ws.ping();
+    }, PING_INTERVAL);
+
+    // Disconnect handling
+    const onDisconnect = () => {
         clearInterval(appWs.connectionInfo.refreshInterval);
+        clearInterval(pingInterval);
         delete activeImages[id];
         delete patchLists[id];
+    }
+    ws.on('close', () => {
+        console.log(`Connection closed for device ${id}`);
+        onDisconnect();
+    });
+    ws.on('error', (err) => {
+        console.error(`WebSocket error for device ${id}:`, err);
+        onDisconnect();
     });
 });
+
 console.log(`WebSocket server running on port ${PORT}`);
 
 
@@ -125,12 +149,10 @@ async function refreshActiveImage({ id, width, height, bufferSize }: ConnectionI
         // Break raw GIF data into segments
         patchLists[id] = [];
         let gifData = await coverGif(image.data, width, height);
-        fs.writeFileSync(`${id}.gif`, gifData); // Save the GIF for debugging
         for(let i = 0; i < gifData.length; i += bufferSize-2){
             const buf = Buffer.alloc(2);
             buf.writeUInt16LE(PatchType.GIF, 0);
             patchLists[id].push(Buffer.concat([buf, gifData.subarray(i, i+bufferSize-2)]));
-            // fs.writeFileSync(`${id}-${i}.gif`, gifData.subarray(i, i+bufferSize-2)); // Save each segment for debugging
         }
     } else {
         patchLists[id] = [];

@@ -72,7 +72,12 @@ export function insertDevice(deviceId: string, screen_length: number, screen_hei
 	}
 }
 export function registerDevice(userId: string, deviceId: string) {
-    return db.prepare('INSERT OR IGNORE INTO user_devices (user_id, device_id) VALUES (?, ?)').run(userId, deviceId);
+	if(deviceExists(deviceId)){
+		return db.prepare('INSERT OR IGNORE INTO user_devices (user_id, device_id) VALUES (?, ?)').run(userId, deviceId);
+	} else {
+		return null;
+	}
+    
 }
 export function getDeviceForUser(deviceId: string, userId: string) {
     return db.prepare('SELECT * FROM devices WHERE id = ? AND id IN (SELECT device_id FROM user_devices WHERE user_id = ?)')

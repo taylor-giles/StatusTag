@@ -135,12 +135,10 @@ export async function getGifPatches(gifBuffer: Buffer, batchSize: number = 2500)
  * @returns A list of patches, each represented as a Uint16Array, separated by the delay (time to show that patch)
  */
 export async function getImagePatches(imageBuffer: Buffer, batchSize: number = 2500): Promise<Uint16Array[]> {
-    console.log("Calculating image patches");
     const image = await Jimp.read(imageBuffer);
     const { width, height, data } = image.bitmap; // data is a Uint8Array of RGBA values
     const patches: Uint16Array[] = [];
     let rowsPerBatch = Math.max(1, Math.floor((batchSize-8) / (width * 2)));
-    console.log("Width:", width, "Height:", height, "Batch Size:", batchSize, "Rows per batch:", rowsPerBatch);
     let remainingRows = height;
     while (remainingRows > 0) {
         const rows = Math.min(rowsPerBatch, remainingRows);
