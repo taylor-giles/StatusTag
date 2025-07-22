@@ -43,16 +43,18 @@ export function getUserIdFromToken(token: string): string | null {
 }
 
 /**
- * Validates the request by extracting and verifying the token from the Authorization header.
+ * Validates the request by extracting and verifying the token from the authToken cookie.
  * @param request - The incoming HTTP request.
  * @returns The userId if the token is valid, otherwise null.
  */
 export function validateRequest(request: Request): string | null {
-	const authHeader = request.headers.get('Authorization');
-	if (!authHeader || !authHeader.startsWith('Bearer ')) {
-		return null;
+	const cookieHeader = request.headers.get('cookie');
+	if (cookieHeader) {
+		const match = cookieHeader.match(/(?:^|; )authToken=([^;]*)/);
+		if (match) {
+			const token = decodeURIComponent(match[1]);
+			return getUserIdFromToken(token);
+		}
 	}
-
-	const token = authHeader.slice(7); // Remove "Bearer " prefix
-	return getUserIdFromToken(token);
+	return null;
 }

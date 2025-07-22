@@ -20,3 +20,8 @@ export type UserDevice = {
 	user_id: string;
 	device_id: string;
 };
+
+export type DisplayImage = {
+	id: number;
+	image_data: string;
+}

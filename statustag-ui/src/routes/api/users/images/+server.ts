@@ -1,4 +1,4 @@
-import type { Image } from '$lib/types';
+import type { DisplayImage, Image } from '$lib/types';
 import { getImagesForUser, insertImage } from '$lib/server/db';
 import { json } from '@sveltejs/kit';
 import { validateRequest } from '$lib/server/auth';
@@ -10,7 +10,7 @@ export async function GET({ request }: { request: Request }) {
 	}
 
 	const images: Image[] = getImagesForUser(userId) as Image[];
-	const encodedImages = images.map(image => ({
+	const encodedImages: DisplayImage[] = images.map(image => ({
 		...image,
 		image_data: image.image_data.toString('base64')
 	}));
