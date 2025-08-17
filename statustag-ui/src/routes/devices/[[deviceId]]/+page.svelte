@@ -4,6 +4,7 @@
 	import type { Device, DisplayImage } from "$lib/types";
 	import { setActiveImage, uploadImage } from "$lib/api";
 	import type { PageProps } from "./$types";
+    import DeviceDropdown from "$lib/DeviceDropdown.svelte";
 
 	let { data }: PageProps = $props();
 	let deviceId: string = page.params.deviceId;
@@ -31,64 +32,68 @@
 </script>
 
 <main>
-	<section id="header">
-		<h2>Current Display</h2>
-		{#if activeImage}
-			<div class="active-image-container">
-				<div
-					style="aspect-ratio: {deviceData.screen_length} / {deviceData.screen_height}; max-height: 100%; max-width: 100%;"
-				>
-					<img
-						src={activeImage}
-						alt=""
-						style="object-fit: cover;"
-						class="active-image"
-					/>
+   <section id="header">
+	   {#if !deviceId}
+		   <div class="active-image-container">
+			   <h2>Welcome!</h2>
+			   <p style="font-size: 1.2rem; color: var(--text-secondary); margin-top: 2rem;">Please add or select a device from the dropdown above.</p>
+			   <DeviceDropdown />
+		   </div>
+	   {:else if activeImage}
+		   <div class="active-image-container">
+			   <h2>Current Display</h2>
+			   <div
+				   style="aspect-ratio: {deviceData.screen_length} / {deviceData.screen_height}; max-height: 100%; max-width: 100%; display: flex; align-items: center; justify-content: center;"
+			   >
+				   <img
+					   src={activeImage}
+					   alt=""
+					   style="object-fit: cover;"
+					   class="active-image"
+				   />
+			   </div>
+		   </div>
+	   {:else}
+		   <p>No active image</p>
+	   {/if}
+   </section>
+
+   {#if deviceId}
+		<section id="gallery" style="width: 100%;">
+			<h2>Gallery</h2>
+			<div class="gallery-wrapper">
+				<div class="gallery">
+					{#if images && images.length > 0 && deviceData}
+						{#each images as image}
+							<button
+								style="aspect-ratio: {deviceData.screen_length} / {deviceData.screen_height};"
+								class="gallery-image"
+								type="button"
+								onclick={() => handleSetImage(image.id)}
+							>
+								<img
+									src={image.image_data}
+									alt=""
+									style="object-fit: cover; width: 100%; height: 100%;"
+								/>
+							</button>
+						{/each}
+					{/if}
+					<label class="gallery-image add-image-btn">
+						<p>＋</p>Add Image
+						<input
+							type="file"
+							accept="image/*"
+							onchange={handleUploadImage}
+						/>
+					</label>
 				</div>
 			</div>
-		{:else}
-			<p>No active image</p>
-		{/if}
-	</section>
-
-	<section id="gallery" style="width: 100%;">
-		<h2>Gallery</h2>
-		<div class="gallery-wrapper">
-			<div class="gallery">
-				{#if images && images.length > 0 && deviceData}
-					{#each images as image}
-						<button
-							style="aspect-ratio: {deviceData.screen_length} / {deviceData.screen_height};"
-							class="gallery-image"
-							type="button"
-							onclick={() => handleSetImage(image.id)}
-						>
-							<img
-								src={image.image_data}
-								alt=""
-								style="object-fit: cover; width: 100%; height: 100%;"
-							/>
-						</button>
-					{/each}
-				{/if}
-				<label class="gallery-image add-image-btn">
-					<p>＋</p>Add Image
-					<input
-						type="file"
-						accept="image/*"
-						onchange={handleUploadImage}
-					/>
-				</label>
-			</div>
-		</div>
-	</section>
+		</section>
+	{/if}
 </main>
 
 <style>
-html {
-  font-size: clamp(14px, 2vw, 20px);
-}
-	@import "../../../app.css";
 	main {
 		display: flex;
 		flex-direction: row;
@@ -116,19 +121,21 @@ html {
 		flex-direction: column;
 	}
 	h2 {
-		font-size: 1.5rem;
-	}
-	.device-info {
-		color: var(--text-secondary);
+		font-size: 1.3rem;
+		font-weight: 600;
+		letter-spacing: 0.5px;
 	}
 	.active-image-container {
-		flex: 1;
 		display: flex;
-		justify-content: center;
+		flex-direction: column;
 		align-items: center;
-		padding: 1rem;
-		height: 0px;
+		justify-content: center;
 		width: 100%;
+		flex: 1;
+		height: 0px;
+		padding: 1rem;
+		padding-inline: 0px;
+		gap: 1.5rem;
 	}
 	.active-image {
 		border-radius: 12px;
@@ -141,6 +148,8 @@ html {
 		flex: 1;
 		height: 0px;
 		overflow-y: auto;
+		padding: 1rem;
+		padding-inline: 0px;
 	}
 	.gallery {
 		display: grid;
@@ -199,19 +208,18 @@ html {
 	input[type="file"] {
 		display: none;
 	}
-	.error {
-		color: var(--error);
-		font-size: 1.1rem;
-		text-align: center;
-	}
 	@media (orientation: portrait) {
 		main {
 			flex-direction: column;
+			gap: 0px;
 		}
-		section,
-		.active-image-container {
+		section {
 			width: 100%;
 			height: 0px;
+		}
+		.active-image-container {
+			height: 0px;
+			flex: 1;
 		}
 		.active-image {
 			max-width: 100%;

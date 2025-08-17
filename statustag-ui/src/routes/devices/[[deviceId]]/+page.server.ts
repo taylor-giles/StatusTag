@@ -16,13 +16,21 @@ export const load: PageServerLoad = async ({ params, cookies, depends }) => {
         throw redirect(302, '/login');
     }
 
-    // Fetch device data for this user
-    const deviceData = getDeviceForUser(deviceId, userId);
-    if (!deviceData) throw error(404, `There is no device with ID ${deviceId} registered to this user.`);
-
     // Fetch all images for this user
     const userImages = getImagesForUser(userId) as Image[];
     const images: DisplayImage[] = userImages.map(image => ({...image, image_data: `data:image/unknown;base64,${image.image_data.toString('base64')}` }));
+
+    if(!deviceId) {
+        return {
+            deviceData: undefined,
+            images,
+            activeImage: undefined
+        }
+    }
+
+    // Fetch device data for this user
+    const deviceData = getDeviceForUser(deviceId, userId);
+    if (!deviceData) throw error(404, `There is no device with ID ${deviceId} registered to this user.`);
 
     // Fetch the active image for this device (if any)
     const activeImageObj = getActiveImageForDevice(deviceId);

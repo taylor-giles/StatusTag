@@ -2,6 +2,7 @@
 	import { goto } from '$app/navigation';
 	import { browser } from '$app/environment';
 	import '../app.css';
+    import DeviceDropdown from '$lib/DeviceDropdown.svelte';
 
 	let { children } = $props();
 	let isLoggedIn = $state(false);
@@ -27,7 +28,7 @@
 	{#if isLoggedIn}
 		<div class="nav-left">
 			<img src="/favicon.png" alt="Logo" class="nav-logo" />
-			<span class="nav-title">StatusTag</span>
+			<DeviceDropdown />
 		</div>
 		<div class="nav-right">
 			<button onclick={logout}>Log Out</button>
@@ -40,7 +41,7 @@
 	{/if}
 </nav>
 
-<main style="flex: 1; height: 0px; max-width: 2500px;">
+<main style="flex: 1; height: 0px; max-width: 2500px; width: 100%;">
 	{@render children()}
 </main>
 
@@ -51,9 +52,8 @@
 		display: flex;
 		justify-content: space-between;
 		align-items: center;
-		padding: 1rem 2vw;
+		padding: 0.5rem;
 		background: var(--surface);
-		border-bottom: 1px solid var(--primary-dark);
 		box-shadow: 0 2px 8px 0 rgba(0,0,0,0.12);
 		width: 100%;
 	}
@@ -63,8 +63,8 @@
 		gap: 0.75rem;
 	}
 	.nav-logo {
-		width: 36px;
-		height: 36px;
+		width: 1.5rem;
+		height: 1.5rem;
 	}
 	.nav-title {
 		font-size: 1.3rem;
@@ -86,19 +86,5 @@
 	.nav-right button:hover {
 		background: var(--primary-light);
 		color: var(--surface);
-	}
-	@media (max-width: 600px) {
-		nav {
-			flex-direction: column;
-			gap: 0.5rem;
-			padding: 0.5rem 2vw;
-		}
-		.nav-logo {
-			width: 28px;
-			height: 28px;
-		}
-		.nav-title {
-			font-size: 1.1rem;
-		}
 	}
 </style>
