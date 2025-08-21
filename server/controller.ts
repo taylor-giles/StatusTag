@@ -1,7 +1,7 @@
 import { NextFunction, Request, Response } from "express";
 import { generateSessionToken, getUserIdFromToken, hashPassword, verifyPassword } from "./auth";
-import db, { createUser, getDevicesForUser, getUserByUsername } from "./db";
-import { User } from "../shared/types";
+import db, { createUser, getActiveImageForDevice, getDevicesForUser, getUserByUsername } from "./db";
+import { Device, User } from "../shared/types";
 
 type AuthenticatedRequest = Request & { userId?: string };
 
@@ -94,7 +94,9 @@ export async function loginUser(req: Request, res: Response){
  * 	- List of devices registered to this user
  */
 export async function getUserDevices(req: AuthenticatedRequest, res: Response){
-	return res.status(200).json(getDevicesForUser(req.userId!))
+	const devices = getDevicesForUser(req.userId!) as any[];
+	devices.forEach((device) => {device.active_image = `data:image/unknown;base64,${getActiveImageForDevice(device.id)?.data.toString('base64')}`})
+	return res.status(200).json(devices)
 }
 
 

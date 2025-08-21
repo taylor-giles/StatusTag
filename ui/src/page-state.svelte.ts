@@ -23,6 +23,9 @@ export function updateLoginStatus() {
     isLoggedIn = document.cookie
         .split(";")
         .some((c) => c.trim().startsWith("authToken="));
+    if(!isLoggedIn){
+        setCurrentDeviceId("");
+    }
 }
 export function setCurrentDeviceId(newId: string) {
     currentDeviceId = newId;

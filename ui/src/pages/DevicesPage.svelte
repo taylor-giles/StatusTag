@@ -1,12 +1,12 @@
 <script lang="ts">
-    import {getDevices} from "../api";
-    import { setCurrentDeviceId } from "../page-state.svelte"
+	import { getDevices } from "../api";
+	import { setCurrentDeviceId } from "../page-state.svelte";
 
 	let devices: any[] = $state([]);
 	let newDeviceId: string = $state("");
 
 	async function registerDevice(e?: Event) {
-        e?.preventDefault();
+		e?.preventDefault();
 		const response = await fetch("/api/users/devices", {
 			method: "POST",
 			headers: {
@@ -22,37 +22,46 @@
 		}
 	}
 
-    async function updateDeviceList() {
-        devices = await getDevices();
-    }
-
-    updateDeviceList();
+	async function updateDeviceList() {
+		devices = await getDevices();
+	}
+	$inspect(devices);
+	updateDeviceList();
 </script>
 
 <main>
-	<h1>Devices</h1>
+	<h1>Your Devices</h1>
 	<div class="device-grid">
 		{#each devices as device (device.id)}
 			<button
 				class="device-card"
-                onclick={() => {setCurrentDeviceId(device.id)}}
+				onclick={() => {
+					setCurrentDeviceId(device.id);
+				}}
 			>
-				<p class="device-id">Device ID: <br /> {device.id}</p>
-				<img
-					class="device-active-image"
-					src={device.active_image.length > 0
-						? `data:image/unknown;base64,${device.active_image}`
-						: ""}
-					alt="Device Display Preview"
-				/>
+				<p class="device-id">{device.id}</p>
+				<div class="device-preview-container">
+					<div
+						class="device-active-image"
+						style="aspect-ratio: {device.screen_length} / {device.screen_height};"
+					>
+						<img
+							style="object-fit: cover; height: 100%; max-width: 100%;"
+							src={device.active_image}
+							alt="Device Preview"
+						/>
+					</div>
+				</div>
 			</button>
+		{:else}
+			<div class="empty-grid-message">
+				Nothing here yet! <br /> Register a device to get started.
+			</div>
 		{/each}
 	</div>
 
 	<h2>Register a New Device</h2>
-	<form
-        onsubmit={registerDevice}
-	>
+	<form onsubmit={registerDevice} class="register-device-form">
 		<label for="deviceId">Device ID:</label>
 		<input id="deviceId" bind:value={newDeviceId} required />
 		<button type="submit">Register</button>
@@ -81,7 +90,7 @@
 	.device-card {
 		border: 1px solid var(--primary-dark);
 		background: var(--surface);
-		padding: 1.25rem 1rem;
+		padding: 1rem 1rem;
 		border-radius: 10px;
 		cursor: pointer;
 		box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.08);
@@ -89,26 +98,40 @@
 			background 0.2s,
 			box-shadow 0.2s;
 		display: flex;
-		flex-direction: row;
-		justify-content: space-between;
+		flex-direction: column;
+		justify-content: flex-start;
 		min-height: 100px;
+		gap: 10px;
 	}
 	.device-card:hover {
 		background: var(--secondary-dark);
 		box-shadow: 0 4px 16px 0 rgba(0, 0, 0, 0.13);
+		color: white;
 	}
 	.device-id {
 		font-weight: bold;
-		margin-bottom: 0.5rem;
+		margin: 0px;
 		word-break: break-all;
 		text-align: left;
 	}
+	.device-preview-container {
+		display: flex;
+		justify-content: center;
+		align-items: center;
+		flex: 1;
+	}
 	.device-active-image {
-		width: auto;
-		height: 100%;
-		max-height: 150px;
-		object-fit: cover;
+		width: 100%;
+		height: auto;
+		max-height: 100%;
 		border-radius: 8px;
 		box-shadow: 0 2px 8px 0 rgba(0, 0, 0, 0.1);
+	}
+	.register-device-form {
+		max-width: 1000px;
+	}
+	.empty-grid-message {
+		width: 100%;
+		text-align: center;
 	}
 </style>
