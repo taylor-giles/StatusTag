@@ -6,7 +6,8 @@ type APIResponse = { data: any, ok: boolean }
 const API_ADDRESS = import.meta.env.PUBLIC_API_ADDRESS ?? "http://localhost:5000/api";
 const API = axios.create({
     baseURL: API_ADDRESS,
-    timeout: 10000
+    timeout: 10000,
+    withCredentials: true
 });
 
 async function POST(endpoint: `/${string}`, body?: any, config?: AxiosRequestConfig<any> | undefined): Promise<APIResponse> {

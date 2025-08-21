@@ -1,6 +1,6 @@
 <script lang="ts">
     import {getDevices} from "../api";
-    // import { setCurrentDeviceId } from "../page-state.svelte"
+    import { setCurrentDeviceId } from "../page-state.svelte"
 
 	let devices: any[] = $state([]);
 	let newDeviceId: string = $state("");
@@ -31,7 +31,7 @@
 
 <main>
 	<h1>Devices</h1>
-	<!-- <div class="device-grid">
+	<div class="device-grid">
 		{#each devices as device (device.id)}
 			<button
 				class="device-card"
@@ -47,7 +47,7 @@
 				/>
 			</button>
 		{/each}
-	</div> -->
+	</div>
 
 	<h2>Register a New Device</h2>
 	<form

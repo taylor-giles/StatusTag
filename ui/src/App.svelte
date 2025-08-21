@@ -1,17 +1,16 @@
 <script lang="ts">
   import { GlobalState, updateLoginStatus } from "./page-state.svelte";
 
+  let isLoggedIn = $derived(GlobalState.isLoggedIn);
+  let PageContent = $derived(GlobalState.pageContent);
+
   function logout() {
     // Remove the authToken cookie by setting it to expire in the past
     document.cookie =
       "authToken=; path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT";
     updateLoginStatus();
   }
-
   updateLoginStatus();
-
-  $inspect(GlobalState);
-  $inspect(GlobalState.pageContent)
 </script>
 
 <main>
@@ -20,7 +19,7 @@
       <img src="/src/assets/favicon.png" alt="Logo" class="nav-logo" />
       <span class="nav-title">StatusTag</span>
     </div>
-    {#if GlobalState.isLoggedIn}
+    {#if isLoggedIn}
       <div class="nav-right">
         <button onclick={logout}>Log Out</button>
       </div>
@@ -28,7 +27,7 @@
   </nav>
 
   <div id="page-content">
-    <GlobalState.pageContent />
+    <PageContent />
   </div>
 </main>
 

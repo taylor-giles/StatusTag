@@ -32,7 +32,7 @@ export function setCurrentDeviceId(newId: string) {
 /**
  * PAGE HANDLING LOGIC
  */
-const currentPage: PAGE = $derived.by(() => {
+let currentPage: PAGE = $derived.by(() => {
     // Page decision logic
     if (isLoggedIn) {
         if (currentDeviceId.length > 0) {
@@ -42,11 +42,11 @@ const currentPage: PAGE = $derived.by(() => {
     }
     return PAGE.LOGIN;
 });
-const currentPageContent: Component = $derived(PAGES.get(currentPage))
+let currentPageContent: Component = $derived(PAGES.get(currentPage))
 
 export const GlobalState = {
-    get isLoggedIn() { return isLoggedIn },
-    get currentDeviceId() { return currentDeviceId },
-    get currentPage() { return currentPage },
-    get pageContent() { return currentPageContent }
+    get isLoggedIn()        { return isLoggedIn },
+    get currentDeviceId()   { return currentDeviceId },
+    get currentPage()       { return currentPage },
+    get pageContent()       { return currentPageContent }
 }

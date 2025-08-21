@@ -31,7 +31,7 @@
     async function handleLogin() {
         const response = await login(username, password);
         if (response.ok) {
-            const { token } = response.data;
+            const token = response.data;
 
             // Set the token as a cookie (expires in 7 days, path=/)
             document.cookie = `authToken=${token}; path=/; max-age=${60 * 60 * 24 * 7}`;
@@ -39,7 +39,6 @@
         } else {
             handleError(((await response.data) as string) ?? "Log in failed.");
         }
-        console.log(response);
     }
 
     async function handleError(err: string) {
