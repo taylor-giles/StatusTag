@@ -198,7 +198,9 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
       break;
     case WStype_CONNECTED:
       Serial.printf("[WS] Connected to url: %s\n", payload);
-      showQRCode(UI_URL, 3, 3, "Welcome!", "Log in here to get started!");
+      char idText[128];
+      snprintf(idText, sizeof(idText), "ID: %s", ID);
+      showQRCode(UI_URL, 3, 3, idText, "Log in here to get started!", false);
       wsConnected = true;
       seqnum = 0;
       break;
@@ -279,15 +281,15 @@ void showSetupStep1() {
   snprintf(ssidText, sizeof(ssidText), "SSID: %s", AP_SSID);
   snprintf(passText, sizeof(passText), "Pass: %s", AP_PASS);
   snprintf(label, sizeof(label), "%s \n %s", ssidText, passText);
-  showQRCode(qrText, 2, 5, "STEP 1", label);
+  showQRCode(qrText, 2, 5, "STEP 1", label, true);
 }
 
 void showSetupStep2() { 
   Serial.println("Showing Step 2");
-  showQRCode("http://192.168.4.1/wifi?", 3, 3, "STEP 2", "Open Setup Page \n http://192.168.4.1");
+  showQRCode("http://192.168.4.1/wifi?", 3, 3, "STEP 2", "Open Setup Page \n http://192.168.4.1", true);
 }
 
-void showQRCode(const char *text, int scale, int qrVersion, const char *title, const char *label){
+void showQRCode(const char *text, int scale, int qrVersion, const char *title, const char *label, bool titleOnTop){
   // Draw QR code
   QRCode qrcode;
   uint8_t qrcodeData[qrcode_getBufferSize(qrVersion)];
@@ -302,17 +304,19 @@ void showQRCode(const char *text, int scale, int qrVersion, const char *title, c
     }
   }
 
+  // Determine text locations
+  int topTextY = 8;
+  int bottomTextY = offsetY + qrcode.size * scale + 4; // 4px gap below QR
+
   // Draw title
   tft.setFont(&fonts::Font2);
   tft.setTextColor(TFT_BLACK, TFT_WHITE);
-  tft.setTextSize(2);
-  tft.setCursor((WIDTH - tft.textWidth(title))/2, (offsetY - tft.fontHeight())/2);
-  tft.print(title);
+  tft.setTextSize(1.5);
+  printWrapped(title, titleOnTop ? topTextY : bottomTextY, true);
 
-  // Draw each label centered on its own line below QR code
+  // Draw each label centered on its own line
   tft.setTextSize(0.85);
-  int labelY = offsetY + qrcode.size * scale + 4; // 4px gap below QR
-  printWrapped(label, labelY, true);
+  printWrapped(label, titleOnTop ? bottomTextY : topTextY, true);
 }
 
 void showError(const char* errorText){
