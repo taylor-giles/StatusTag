@@ -5,7 +5,8 @@
 #include <ESP8266WiFi.h>
 #include <LittleFS.h>
 #include <WebSocketsClient.h>  //Requires WebSockets library by Markus Sattler
-
+#include <WiFiManager.h>       // https://github.com/tzapu/WiFiManager
+#include <qrcode.h>            // https://github.com/ricmoo/QRCode
 #include <LovyanGFX.hpp>
 
 class LGFX_ST7735 : public lgfx::LGFX_Device {
@@ -89,8 +90,11 @@ const char *ssid = "SSID";             // REPLACE WITH YOUR SSID
 const char *password = "PASSWORD";     // REPLACE WITH YOUR WIFI PASS
 const char *WS_HOST = "HOST_ADDRESS";  // REPLACE WITH YOUR WS HOST
 const int WS_PORT = 8080;              // REPLACE WITH YOUR WS PORT
-bool connected = false;
+bool wifiConnected = false;
+bool wsConnected = false;
+bool showingSetupStep2 = false;
 uint16_t seqnum = 0;
+WiFiManager wifiManager;
 
 // Display vars
 File gifFile;
@@ -118,40 +122,61 @@ void setup() {
   }
   Serial.println(WiFi.macAddress());
 
-  // Connect to WiFi
-  WiFi.begin(ssid, password);
-  while (WiFi.status() != WL_CONNECTED) {
-    delay(500);
-    Serial.print(".");
+  // WiFiManager: Automatically connect or start config portal if needed
+  wifiManager.setConfigPortalBlocking(false);
+  wifiConnected = wifiManager.autoConnect("StatusTag-Setup", "StatusTagSetup");
+  if (wifiConnected) {
+    tft.fillScreen(TFT_BLACK);
+    Serial.println("WiFi connected!");
+    Serial.print("Local IP: ");
+    Serial.println(WiFi.localIP());
+    delay(50);
+
+    // Set up web socket connection
+    webSocket.begin(WS_HOST, WS_PORT, WS_PATH);
+    webSocket.onEvent(webSocketEvent);
+
+    gif.begin(BIG_ENDIAN_PIXELS);
   }
-  Serial.print("Local IP: ");
-  Serial.println(WiFi.localIP());
-  delay(50);
-
-  // Set up web socket connection
-  webSocket.begin(WS_HOST, WS_PORT, WS_PATH);
-  webSocket.onEvent(webSocketEvent);
-
-  gif.begin(BIG_ENDIAN_PIXELS);
 }
 
 void loop() {
-  webSocket.loop();
-  if (isGifActive && !isGifFileOpen && !loadingData) {
-    if (gif.open(GIF_FILE_NAME, GIFOpenFile, GIFCloseFile, GIFReadFile,
-                 GIFSeekFile, GIFDraw)) {
-      while (gif.playFrame(true, NULL)) {
-        yield();
+  if (wifiConnected) {
+    webSocket.loop();
+    if (isGifActive && !isGifFileOpen && !loadingData) {
+      if (gif.open(GIF_FILE_NAME, GIFOpenFile, GIFCloseFile, GIFReadFile,
+                   GIFSeekFile, GIFDraw)) {
+        while (gif.playFrame(true, NULL)) {
+          yield();
+        }
+        gif.close();
+      } else {
+        Serial.println("ERROR: Failed to load GIF file");
       }
-      gif.close();
-    } else {
-      Serial.println("ERROR: Failed to load GIF file");
     }
-  }
 
-  if (connected && loadingData && readyForNextPacket) {
-    readyForNextPacket = false;
-    webSocket.sendBIN((uint8_t *)&seqnum, sizeof(seqnum));
+    if (wsConnected && loadingData && readyForNextPacket) {
+      readyForNextPacket = false;
+      webSocket.sendBIN((uint8_t *)&seqnum, sizeof(seqnum));
+    }
+  } else {
+    //WifiManager config portal processing
+    if(wifiManager.process()){
+      ESP.restart();
+    }
+
+    // Show setup page QR code if a device connects to AP and not yet shown
+    if (WiFi.softAPgetStationNum() > 0){
+      if(!showingSetupStep2) {
+        showSetupStep2();
+        showingSetupStep2 = true;
+      }
+    } else {
+      if(showingSetupStep2){
+        showSetupStep1("StatusTag-Setup", "StatusTagSetup");
+        showingSetupStep2 = false;
+      }
+    }
   }
 }
 
@@ -159,12 +184,12 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED:
       Serial.printf("[WS] Disconnected!\n");
-      connected = false;
+      wsConnected = false;
       loadingData = false;
       break;
     case WStype_CONNECTED:
       Serial.printf("[WS] Connected to url: %s\n", payload);
-      connected = true;
+      wsConnected = true;
       seqnum = 0;
       break;
 
@@ -233,6 +258,56 @@ void clearGifFile() {
   closeGifFile();
   LittleFS.remove(GIF_FILE_NAME);
 }
+
+void showSetupStep1(const char *ssid, const char *password) {
+  char qrText[128];
+  char ssidText[128];
+  char passText[128];
+  snprintf(qrText, sizeof(qrText), "WIFI:T:WPA;S:%s;P:%s;;", ssid, password);
+  snprintf(ssidText, sizeof(ssidText), "SSID: %s", ssid);
+  snprintf(passText, sizeof(passText), "Pass: %s", password);
+  const char *labels[] = {ssidText, passText};
+  showQRCode(qrText, 2, 5, "STEP 1", labels, 2);
+}
+
+void showSetupStep2() { 
+  const char *labels[] = {"Open Setup Page", "http://192.168.4.1"};
+  showQRCode("http://192.168.4.1", 3, 3, "STEP 2", labels, 2);
+}
+
+void showQRCode(const char *text, int scale, int qrVersion, const char *title, const char *labels[], size_t numLabels){
+  QRCode qrcode;
+  uint8_t qrcodeData[qrcode_getBufferSize(qrVersion)];
+  qrcode_initText(&qrcode, qrcodeData, qrVersion, ECC_MEDIUM, text);
+  tft.fillScreen(TFT_WHITE);
+  int offsetX = (WIDTH - qrcode.size * scale) / 2;
+  int offsetY = (HEIGHT - qrcode.size * scale) / 2;
+  for (uint8_t y = 0; y < qrcode.size; y++) {
+    for (uint8_t x = 0; x < qrcode.size; x++) {
+      uint16_t color = qrcode_getModule(&qrcode, x, y) ? TFT_BLACK : TFT_WHITE;
+      tft.fillRect(offsetX + x * scale, offsetY + y * scale, scale, scale, color);
+    }
+  }
+
+  // Show title
+  tft.setFont(&fonts::Font2);
+  tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  tft.setTextSize(2);
+  tft.setCursor((WIDTH - tft.textWidth(title))/2, (offsetY - tft.fontHeight())/2);
+  tft.print(title);
+
+  // Show each label on its own line below QR code
+  tft.setTextSize(0.85);
+  int fontHeight = tft.fontHeight();
+  int labelY = offsetY + qrcode.size * scale + 4; // 4px gap below QR
+  for (size_t i = 0; i < numLabels; ++i) {
+    int textWidth = tft.textWidth(labels[i]);
+    int x = (WIDTH - textWidth) / 2;
+    tft.setCursor(x, labelY + i * fontHeight);
+    tft.print(labels[i]);
+  }
+}
+
 
 ///////////////////////////
 // AnimatedGIF Callbacks //
