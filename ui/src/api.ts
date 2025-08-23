@@ -68,3 +68,7 @@ export async function uploadImage(imageFile: File): Promise<APIResponse> {
     });
 }
 
+export async function registerDevice(deviceId: string): Promise<APIResponse>{
+    return POST("/registerDevice", {deviceId});
+}
+

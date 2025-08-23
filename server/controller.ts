@@ -1,6 +1,6 @@
 import { NextFunction, Request, Response } from "express";
 import { generateSessionToken, getUserIdFromToken, hashPassword, verifyPassword } from "./auth";
-import db, { createUser, getActiveImageForDevice, getDeviceForUser, getDevicesForUser, getImageByIdForUser, getImagesForUser, getUserByUsername, insertImage, setActiveImageForUserDevice } from "./db";
+import db, { createUser, getActiveImageForDevice, getDeviceForUser, getDevicesForUser, getImageByIdForUser, getImagesForUser, getUserByUsername, insertImage, registerDeviceForUser, setActiveImageForUserDevice } from "./db";
 import { Device, DisplayDevice, DisplayImage, Image, User } from "../shared/types";
 
 type AuthenticatedRequest = Request & { userId?: string };
@@ -21,6 +21,7 @@ export async function authenticate(req: AuthenticatedRequest, res: Response, nex
 				return res.status(500).json("User ID not found");
 			}
 			req.userId = userId;
+			return next();
 			return next();
 		}
 	}
@@ -134,12 +135,27 @@ export async function getUserImages(req: AuthenticatedRequest, res: Response) {
 	return res.status(200).json(encodedImages);
 }
 
+/**
+ * GET /device
+ * Returns the details of the requested device if it is registered to the authenticated user
+ * 
+ * Response Body:
+ * 	- Device data as a DisplayDevice
+ */
 export async function getDeviceDetails(req: AuthenticatedRequest & IDQueryRequest, res: Response) {
 	const device: Device = getDeviceForUser(req.queryId!, req.userId!) as Device;
 	const encodedDevice = {...device, active_image:`data:image/unknown;base64,${getActiveImageForDevice(device.id)?.data.toString('base64')}`}
 	return res.status(200).json(encodedDevice);
 }
 
+/**
+ * POST /setImage
+ * Sets the active image of the provided device, if both the image and device belong to the authenticated user
+ * 
+ * Request Body:
+ * 	- deviceId: string - The ID of the device
+ * 	- imageId: string - The ID of the image
+ */
 export async function setDeviceImage(req: AuthenticatedRequest, res: Response) {
 	const {deviceId, imageId} = req?.body
 	if(!deviceId || !imageId){
@@ -159,10 +175,36 @@ export async function setDeviceImage(req: AuthenticatedRequest, res: Response) {
 	return res.status(500).json("Failed to set active image");
 }
 
+/**
+ * POST /addImage
+ * Adds a new image to the authenticated user's gallery
+ * 
+ * Request Form Data:
+ * 	- One file, named "image"
+ */
 export async function addNewImage(req: AuthenticatedRequest, res: Response) {
 	const imgBuffer = req.file!.buffer;
 	insertImage(req.userId!, Buffer.from(imgBuffer));
 	return res.status(200).json();
+}
+
+/**
+ * POST /registerDevice
+ * Registered provided device ID to the authenticated user
+ * 
+ * Request Body:
+ * 	- deviceId: string - The ID of the device to register
+ */
+export async function registerDevice(req: AuthenticatedRequest, res: Response) {
+	const { deviceId } = req?.body;
+	if(!deviceId) {
+		return res.status(400).json('Bad request - deviceId must be provided');
+	}
+
+	if(registerDeviceForUser(deviceId, req.userId!)){
+		return res.status(200).json();
+	}
+	return res.status(500).json(`Unable to find device ${deviceId}`);
 }
 
 /**

@@ -91,10 +91,6 @@
 </main>
 
 <style>
-html {
-  font-size: clamp(14px, 2vw, 20px);
-}
-	@import "../../../app.css";
 	main {
 		display: flex;
 		flex-direction: row;

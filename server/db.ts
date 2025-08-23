@@ -71,7 +71,7 @@ export function insertDevice(deviceId: string, screen_length: number, screen_hei
         	.run(deviceId, screen_length, screen_height);
 	}
 }
-export function registerDevice(userId: string, deviceId: string) {
+export function registerDeviceForUser(deviceId: string, userId: string) {
 	if(deviceExists(deviceId)){
 		return db.prepare('INSERT OR IGNORE INTO user_devices (user_id, device_id) VALUES (?, ?)').run(userId, deviceId);
 	} else {

@@ -1,22 +1,17 @@
 <script lang="ts">
-	import { getDevices } from "../api";
+	import { getDevices, registerDevice } from "../api";
 	import { setCurrentDeviceId } from "../page-state.svelte";
 
 	let devices: any[] = $state([]);
 	let newDeviceId: string = $state("");
 
-	async function registerDevice(e?: Event) {
+	async function handleRegister(e?: Event) {
 		e?.preventDefault();
-		const response = await fetch("/api/users/devices", {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ deviceId: newDeviceId }),
-		});
+		const response = await registerDevice(newDeviceId);
 		if (response.ok) {
 			updateDeviceList();
 			newDeviceId = "";
+			setCurrentDeviceId(newDeviceId);
 		} else {
 			alert("Failed to register device");
 		}
@@ -25,7 +20,7 @@
 	async function updateDeviceList() {
 		devices = await getDevices();
 	}
-	$inspect(devices);
+
 	updateDeviceList();
 </script>
 
@@ -61,7 +56,7 @@
 	</div>
 
 	<h2>Register a New Device</h2>
-	<form onsubmit={registerDevice} class="register-device-form">
+	<form onsubmit={handleRegister} class="register-device-form">
 		<label for="deviceId">Device ID:</label>
 		<input id="deviceId" bind:value={newDeviceId} required />
 		<button type="submit">Register</button>
