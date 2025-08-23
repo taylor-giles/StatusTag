@@ -1,3 +1,5 @@
+import { Buffer } from "buffer";
+
 export type User = {
 	username: string;
 	password_hash: string;
@@ -6,6 +8,13 @@ export type User = {
 export type Device = {
 	id: string;
 	active_image: number | null;
+	screen_length: number;
+	screen_height: number;
+};
+
+export type DisplayDevice = {
+	id: string;
+	active_image: string | null;
 	screen_length: number;
 	screen_height: number;
 };

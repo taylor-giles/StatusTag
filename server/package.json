@@ -1,4 +1,11 @@
 {
+  "name": "statustag-server",
+  "private": true,
+  "version": "0.0.1",
+  "scripts": {
+    "server": "npx ts-node server.ts",
+    "ws": "tsx ws-server"
+  },
   "dependencies": {
     "@gumlet/gif-resize": "^1.3.1",
     "bcrypt": "^6.0.0",
@@ -9,6 +16,7 @@
     "express": "^5.1.0",
     "gifuct-js": "^2.1.2",
     "jimp": "^1.6.0",
+    "multer": "^2.0.2",
     "path": "^0.12.7",
     "uuid": "^11.1.0",
     "ws": "^8.18.3"
@@ -18,7 +26,9 @@
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.19",
     "@types/express": "^5.0.3",
+    "@types/multer": "^2.0.0",
     "@types/node": "^24.3.0",
-    "@types/ws": "^8.18.1"
+    "@types/ws": "^8.18.1",
+    "tsx": "^4.20.4"
   }
 }

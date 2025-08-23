@@ -5,6 +5,6 @@ declare module '@gumlet/gif-resize' {
         stretch?: boolean;
         crop?: number[];
     }
-    function gifResize(options: GifResizeOptions): ( buffer: Buffer ) => Promise<Buffer>;
-    export default gifResize;
+    function gifResize(options: GifResizeOptions): ( buffer: any ) => Promise<any>;
+    export = gifResize;
 }

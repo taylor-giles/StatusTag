@@ -87,6 +87,11 @@ export function getActiveImageForDevice(deviceId: string) {
     const row = db.prepare('SELECT images.id as image_id, images.image_data FROM devices JOIN images ON devices.active_image = images.id WHERE devices.id = ?').get(deviceId) as { image_id?: number, image_data?: Buffer } | undefined;
     return row && row.image_id && row.image_data ? { id: row.image_id, data: row.image_data } : null;
 }
+export function setActiveImageForUserDevice(deviceId: string, imageId: string, userId: string){
+	return db.prepare(
+		'UPDATE devices SET active_image = ? WHERE id = ? AND id IN (SELECT device_id FROM user_devices WHERE user_id = ?)'
+	).run(imageId, deviceId, userId).changes > 0;
+}
 
 // Image-related DB functions
 export function getImagesForUser(userId: string) {
