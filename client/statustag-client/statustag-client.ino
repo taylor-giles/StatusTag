@@ -75,7 +75,7 @@ AnimatedGIF gif;
 #define STR(x) STR_HELPER(x)
 
 // Constants
-#define ID "finally"
+#define ID "newbie"
 #define WIDTH 128
 #define HEIGHT 160
 #define BUFFER_SIZE 10000
@@ -86,15 +86,15 @@ AnimatedGIF gif;
 
 // WiFi/WS connection vars
 WebSocketsClient webSocket;
-const char *ssid = "SSID";             // REPLACE WITH YOUR SSID
-const char *password = "PASSWORD";     // REPLACE WITH YOUR WIFI PASS
-const char *WS_HOST = "HOST_ADDRESS";  // REPLACE WITH YOUR WS HOST
-const int WS_PORT = 8080;              // REPLACE WITH YOUR WS PORT
+const char *UI_URL = "http://example.com"; // REPLACE WITH ADDRESS OF UI SERVER
+const char *WS_HOST = "0.0.0.0";         // REPLACE WITH YOUR WS HOST
+const int WS_PORT = 8080;                     // REPLACE WITH YOUR WS PORT
 bool wifiConnected = false;
 bool wsConnected = false;
-bool showingSetupStep2 = false;
 uint16_t seqnum = 0;
 WiFiManager wifiManager;
+const char *AP_SSID = "StatusTagSetup"; // SSID of setup AP network     
+const char *AP_PASS = "GettingStarted"; // Password of setup AP network
 
 // Display vars
 File gifFile;
@@ -103,6 +103,11 @@ bool isGifFileOpen = false;
 bool isGifActive = false;
 bool loadingData = false;
 bool readyForNextPacket = false;
+
+// Operation variables
+bool showingSetupStep2 = false;
+bool showingError = false;
+const char* SERVER_UNREACHABLE = "Unable to reach server";
 
 void setup() {
   tft.init();
@@ -124,7 +129,10 @@ void setup() {
 
   // WiFiManager: Automatically connect or start config portal if needed
   wifiManager.setConfigPortalBlocking(false);
-  wifiConnected = wifiManager.autoConnect("StatusTag-Setup", "StatusTagSetup");
+  wifiManager.setAPCallback([](WiFiManager *wmm) {
+    showSetupStep1();
+  });
+  wifiConnected = wifiManager.autoConnect(AP_SSID, AP_PASS);
   if (wifiConnected) {
     tft.fillScreen(TFT_BLACK);
     Serial.println("WiFi connected!");
@@ -173,7 +181,7 @@ void loop() {
       }
     } else {
       if(showingSetupStep2){
-        showSetupStep1("StatusTag-Setup", "StatusTagSetup");
+        showSetupStep1();
         showingSetupStep2 = false;
       }
     }
@@ -183,12 +191,14 @@ void loop() {
 void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED:
+      showError(SERVER_UNREACHABLE);
       Serial.printf("[WS] Disconnected!\n");
       wsConnected = false;
       loadingData = false;
       break;
     case WStype_CONNECTED:
       Serial.printf("[WS] Connected to url: %s\n", payload);
+      showQRCode(UI_URL, 3, 3, "Welcome!", "Log in here to get started!");
       wsConnected = true;
       seqnum = 0;
       break;
@@ -259,23 +269,26 @@ void clearGifFile() {
   LittleFS.remove(GIF_FILE_NAME);
 }
 
-void showSetupStep1(const char *ssid, const char *password) {
+void showSetupStep1() {
+  Serial.println("Showing Step 1");
   char qrText[128];
   char ssidText[128];
   char passText[128];
-  snprintf(qrText, sizeof(qrText), "WIFI:T:WPA;S:%s;P:%s;;", ssid, password);
-  snprintf(ssidText, sizeof(ssidText), "SSID: %s", ssid);
-  snprintf(passText, sizeof(passText), "Pass: %s", password);
-  const char *labels[] = {ssidText, passText};
-  showQRCode(qrText, 2, 5, "STEP 1", labels, 2);
+  char label[128*2];
+  snprintf(qrText, sizeof(qrText), "WIFI:T:WPA;S:%s;P:%s;;", AP_SSID, AP_PASS);
+  snprintf(ssidText, sizeof(ssidText), "SSID: %s", AP_SSID);
+  snprintf(passText, sizeof(passText), "Pass: %s", AP_PASS);
+  snprintf(label, sizeof(label), "%s \n %s", ssidText, passText);
+  showQRCode(qrText, 2, 5, "STEP 1", label);
 }
 
 void showSetupStep2() { 
-  const char *labels[] = {"Open Setup Page", "http://192.168.4.1"};
-  showQRCode("http://192.168.4.1", 3, 3, "STEP 2", labels, 2);
+  Serial.println("Showing Step 2");
+  showQRCode("http://192.168.4.1/wifi?", 3, 3, "STEP 2", "Open Setup Page \n http://192.168.4.1");
 }
 
-void showQRCode(const char *text, int scale, int qrVersion, const char *title, const char *labels[], size_t numLabels){
+void showQRCode(const char *text, int scale, int qrVersion, const char *title, const char *label){
+  // Draw QR code
   QRCode qrcode;
   uint8_t qrcodeData[qrcode_getBufferSize(qrVersion)];
   qrcode_initText(&qrcode, qrcodeData, qrVersion, ECC_MEDIUM, text);
@@ -289,22 +302,90 @@ void showQRCode(const char *text, int scale, int qrVersion, const char *title, c
     }
   }
 
-  // Show title
+  // Draw title
   tft.setFont(&fonts::Font2);
   tft.setTextColor(TFT_BLACK, TFT_WHITE);
   tft.setTextSize(2);
   tft.setCursor((WIDTH - tft.textWidth(title))/2, (offsetY - tft.fontHeight())/2);
   tft.print(title);
 
-  // Show each label on its own line below QR code
+  // Draw each label centered on its own line below QR code
   tft.setTextSize(0.85);
-  int fontHeight = tft.fontHeight();
   int labelY = offsetY + qrcode.size * scale + 4; // 4px gap below QR
-  for (size_t i = 0; i < numLabels; ++i) {
-    int textWidth = tft.textWidth(labels[i]);
-    int x = (WIDTH - textWidth) / 2;
-    tft.setCursor(x, labelY + i * fontHeight);
-    tft.print(labels[i]);
+  printWrapped(label, labelY, true);
+}
+
+void showError(const char* errorText){
+  if(showingError){ return; }
+  showingError = true;
+
+  // Clear screen
+  tft.fillScreen(TFT_WHITE);
+
+  // Dimensions for "error" triangle
+  int triHeight = HEIGHT / 4;
+  int triBase = triHeight;
+  int triCenterX = WIDTH / 2;
+  int triTopY = triHeight / 4; //Padding from top
+  int triLeftX = triCenterX - triBase / 2;
+  int triRightX = triCenterX + triBase / 2;
+  int triBottomY = triTopY + triHeight;
+
+  // Draw filled red triangle
+  tft.fillTriangle(triCenterX, triTopY, triLeftX, triBottomY, triRightX, triBottomY, TFT_RED);
+
+  // Draw exclamation mark in triangle
+  tft.setTextColor(TFT_WHITE, TFT_RED);
+  tft.setFont(&fonts::FreeMonoBold24pt7b);
+  tft.setTextSize(0.5);
+  const char* exMark = "!";
+  int exWidth = tft.textWidth(exMark);
+  int exHeight = tft.fontHeight();
+  tft.setCursor(triCenterX - exWidth/2, triTopY + triBottomY/2 - exHeight/2);
+  tft.print(exMark);
+
+  // Show error text below triangle with word wrapping
+  tft.setFont(&fonts::Font2);
+  tft.setTextColor(TFT_BLACK, TFT_WHITE);
+  tft.setTextSize(1);
+  printWrapped(errorText, triBottomY + 8, true);
+}
+
+
+void printWrapped(const char* text, int startY, bool centered){
+  int fontHeight = tft.fontHeight();
+  int labelY = startY; // 8px gap below triangle
+  int maxWidth = WIDTH - 8; // 4px margin each side
+  char line[64];
+  int lineLen = 0;
+  int y = labelY;
+  const char* p = text;
+  while (*p) {
+    // Start a new line
+    lineLen = 0;
+    int lastSpace = -1;
+    int i = 0;
+    while (p[i] && lineLen < (int)sizeof(line) - 1) {
+      line[lineLen] = p[i];
+      if (p[i] == ' ') lastSpace = lineLen;
+      line[lineLen+1] = '\0';
+      if (tft.textWidth(line) > maxWidth) break;
+      lineLen++;
+      i++;
+    }
+    if (lineLen == 0) break;
+    // If we broke at a word, back up to last space
+    if (p[i] && lastSpace != -1) {
+      line[lastSpace] = '\0';
+      i = lastSpace + 1;
+    }
+    int textWidth = tft.textWidth(line);
+    int x = centered ? ((WIDTH - textWidth) / 2) : 4;
+    tft.setCursor(x, y);
+    tft.print(line);
+    y += fontHeight;
+    p += i;
+    while (*p == ' ') ++p; // skip spaces at start of next line
   }
 }
 
