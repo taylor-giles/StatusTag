@@ -9,6 +9,12 @@
 #include <qrcode.h>            // https://github.com/ricmoo/QRCode
 #include <LovyanGFX.hpp>
 
+bool DEBUG_MODE = false; // Set to false to disable debug output
+#define DEBUG_BEGIN(x)    do { if (DEBUG_MODE) Serial.begin(115200); } while (0)
+#define DEBUG_PRINT(x)    do { if (DEBUG_MODE) Serial.print(x); } while (0)
+#define DEBUG_PRINTLN(x)  do { if (DEBUG_MODE) Serial.println(x); } while (0)
+#define DEBUG_PRINTF(...) do { if (DEBUG_MODE) Serial.printf(__VA_ARGS__); } while (0)
+
 enum Screen {
   SETUP_STEP_1 = 0,
   SETUP_STEP_2 = 1,
@@ -129,20 +135,25 @@ void setup() {
   pinMode(BACKLIGHT_PIN, OUTPUT);
 
   tft.init();
+  showSplash();
   digitalWrite(BACKLIGHT_PIN, HIGH);
-  Serial.begin(115200);
-  Serial.println(WS_PATH);
+  
+  DEBUG_BEGIN();
+  
   if (!LittleFS.begin()) {
-    Serial.println("Failed to mount LittleFS");
+    DEBUG_PRINTLN("Failed to mount LittleFS");
     return;
   }
 
-  for (uint8_t t = 3; t > 0; t--) {
-    Serial.printf("[SETUP] BOOT WAIT %d...\n", t);
-    Serial.flush();
-    delay(1000);
+  if(DEBUG_MODE){
+    for (uint8_t t = 3; t > 0; t--) {
+      DEBUG_PRINTF("[SETUP] BOOT WAIT %d...\n", t);
+      Serial.flush();
+      delay(1000);
+    }
   }
-  Serial.println(WiFi.macAddress());
+  DEBUG_PRINTLN(WS_PATH);
+  DEBUG_PRINTLN(WiFi.macAddress());
 
   // Device ID setup
   if (LittleFS.exists("/ID.txt")) {
@@ -171,9 +182,9 @@ void setup() {
   wifiConnected = wifiManager.autoConnect(AP_SSID, AP_PASS);
   if (wifiConnected) {
     tft.fillScreen(TFT_BLACK);
-    Serial.println("WiFi connected!");
-    Serial.print("Local IP: ");
-    Serial.println(WiFi.localIP());
+    DEBUG_PRINTLN("WiFi connected!");
+    DEBUG_PRINT("Local IP: ");
+    DEBUG_PRINTLN(WiFi.localIP());
     delay(50);
 
     // Set up web socket connection
@@ -204,7 +215,7 @@ void loop() {
         }
         gif.close();
       } else {
-        Serial.println("ERROR: Failed to load GIF file");
+        DEBUG_PRINTLN("ERROR: Failed to load GIF file");
       }
     }
 
@@ -235,19 +246,19 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
   switch (type) {
     case WStype_DISCONNECTED:
       showError(SERVER_UNREACHABLE, false);
-      Serial.printf("[WS] Disconnected!\n");
+      DEBUG_PRINTF("[WS] Disconnected!\n");
       wsConnected = false;
       loadingData = false;
       break;
     case WStype_CONNECTED:
-      Serial.printf("[WS] Connected to url: %s\n", payload);
+      DEBUG_PRINTF("[WS] Connected to url: %s\n", payload);
       changeScreen(WELCOME);
       wsConnected = true;
       seqnum = 0;
       break;
 
     case WStype_TEXT:
-      Serial.printf("[WS] Received text: %s\n", payload);
+      DEBUG_PRINTF("[WS] Received text: %s\n", payload);
       break;
 
     case WStype_BIN:
@@ -260,29 +271,29 @@ void webSocketEvent(WStype_t type, uint8_t *payload, size_t length) {
       // Handle message
       switch (msgType) {
         case NEW_MSG:
-          Serial.println("New image/gif data is available!");
+          DEBUG_PRINTLN("New image/gif data is available!");
           seqnum = 0;
           loadingData = true;
           break;
         case GIF_MSG:
           openGifFile();
-          Serial.printf("> Writing %d bytes to GIF file\n", length - 2);
+          DEBUG_PRINTF("> Writing %d bytes to GIF file\n", length - 2);
           gifFile.write(payload + 2, length - 2);
           isGifActive = true;
           break;
         case IMG_MSG:
-          Serial.println("> Processing image data");
+          DEBUG_PRINTLN("> Processing image data");
           latestImageData = msgData;
           isGifActive = false;
           changeScreen(IMAGE);
           break;
         case EOF_MSG:
-          Serial.println("Finished processing new data");
+          DEBUG_PRINTLN("Finished processing new data");
           loadingData = false;
           closeGifFile();
           break;
         default:
-          Serial.printf("Unrecognized message type %d\n", msgType);
+          DEBUG_PRINTF("Unrecognized message type %d\n", msgType);
       }
       readyForNextPacket = true;
       break;
@@ -299,7 +310,7 @@ void handleButton() {
     buttonWasPressed = false;
     if (pressDuration >= resetPressTime) {
       // Long press: reset device
-      Serial.println("Long press detected: resetting device");
+      DEBUG_PRINTLN("Long press detected: resetting device");
       wifiManager.resetSettings();
       LittleFS.format();
       ESP.restart();
@@ -307,8 +318,8 @@ void handleButton() {
       restoreScreen();
     } else if (pressDuration > 20) {
       // Short press: toggle sleep/awake
-      Serial.print("Short press detected: toggling sleep mode: ");
-      Serial.println(isSleeping ? "Waking up" : "Entering sleep");
+      DEBUG_PRINT("Short press detected: toggling sleep mode: ");
+      DEBUG_PRINTLN(isSleeping ? "Waking up" : "Entering sleep");
       if (!isSleeping) {
         enterSleep();
       } else {
@@ -330,7 +341,7 @@ void handleButton() {
 void openGifFile() {
   if (!isGifFileOpen) {
     clearGifFile();
-    Serial.println("Opening GIF file for writing");
+    DEBUG_PRINTLN("Opening GIF file for writing");
     gifFile = LittleFS.open(GIF_FILE_NAME, "a");
     isGifFileOpen = true;
   }
@@ -338,21 +349,21 @@ void openGifFile() {
 
 void closeGifFile() {
   if (isGifFileOpen) {
-    Serial.println("Closing GIF file");
+    DEBUG_PRINTLN("Closing GIF file");
     gifFile.close();
     isGifFileOpen = false;
   }
 }
 
 void clearGifFile() {
-  Serial.println("Clearing GIF file");
+  DEBUG_PRINTLN("Clearing GIF file");
   closeGifFile();
   LittleFS.remove(GIF_FILE_NAME);
 }
 
 
 void enterSleep() {
-  Serial.println("Entering light sleep mode");
+  DEBUG_PRINTLN("Entering light sleep mode");
   tft.sleep();
   digitalWrite(BACKLIGHT_PIN, LOW);
   delay(100);
@@ -362,19 +373,12 @@ void enterSleep() {
   wifi_set_opmode(NULL_MODE);
   wifi_fpm_set_sleep_type(LIGHT_SLEEP_T);
   wifi_fpm_open();
-  wifi_fpm_set_wakeup_cb(wakeUp);
+  wifi_fpm_set_wakeup_cb(ESP.restart);
   wifi_fpm_do_sleep(0xFFFFFFF);  // sleep indefinitely until GPIO wake
 }
 
-
-void wakeUp() {
-  Serial.println("Waking up from light sleep");
-  tft.wakeup();
-  digitalWrite(BACKLIGHT_PIN, HIGH);
-}
-
 void showSetupStep1() {
-  Serial.println("Showing Step 1");
+  DEBUG_PRINTLN("Showing Step 1");
   char qrText[128];
   char ssidText[128];
   char passText[128];
@@ -387,12 +391,12 @@ void showSetupStep1() {
 }
 
 void showSetupStep2() {
-  Serial.println("Showing Step 2");
+  DEBUG_PRINTLN("Showing Step 2");
   showQRCode("http://192.168.4.1/wifi?", 3, 3, "STEP 2", "Open Setup Page \n http://192.168.4.1", true);
 }
 
 void showWelcome() {
-  Serial.println("Showing welcome");
+  DEBUG_PRINTLN("Showing welcome");
   char idText[128];
   snprintf(idText, sizeof(idText), "ID: %s", deviceID);
   showQRCode(UI_URL, 3, 3, idText, "Log in here to get started!", false);
@@ -461,6 +465,12 @@ void showError(const char *errorText, bool force) {
   tft.setTextColor(TFT_BLACK, TFT_WHITE);
   tft.setTextSize(1);
   printWrapped(errorText, triBottomY + 8, true);
+}
+
+void showSplash() {
+  changeScreen(NONE);
+  tft.fillScreen(TFT_BLACK);
+  tft.fillCircle(WIDTH/2, HEIGHT/2, WIDTH/5, TFT_WHITE);
 }
 
 
@@ -635,3 +645,5 @@ void GIFDraw(GIFDRAW *pDraw) {
     tft.pushRect(pDraw->iX, y, iWidth, 1, (uint16_t *)usTemp);
   }
 }
+
+
