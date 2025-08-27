@@ -8,6 +8,12 @@
 #include <WiFiManager.h>       // https://github.com/tzapu/WiFiManager
 #include <qrcode.h>            // https://github.com/ricmoo/QRCode
 #include <LovyanGFX.hpp>
+#include <ESP8266HTTPClient.h>
+#include <ESP8266httpUpdate.h>
+
+#define VERSION "1.0.0" // Change this for each release
+#define OTA_VERSION_URL "https://raw.githubusercontent.com/<owner>/<repo>/main/version.txt" // Replace with your repo
+#define OTA_FIRMWARE_URL "https://github.com/<owner>/<repo>/releases/latest/download/firmware.bin" // Replace with your binary
 
 bool DEBUG_MODE = false; // Set to false to disable debug output
 #define DEBUG_BEGIN(x)    do { if (DEBUG_MODE) Serial.begin(115200); } while (0)
@@ -154,6 +160,9 @@ void setup() {
   }
   DEBUG_PRINTLN(WS_PATH);
   DEBUG_PRINTLN(WiFi.macAddress());
+
+  // Check for firmware update
+  checkForOTAUpdate();
 
   // Device ID setup
   if (LittleFS.exists("/ID.txt")) {
@@ -546,6 +555,46 @@ void restoreScreen() {
   if(changeScreen(prevScreen)){
     prevScreen = NONE;
   }
+}
+
+void checkForOTAUpdate() {
+  if (!wifiConnected) return;
+  WiFiClient client;
+  HTTPClient http;
+  http.begin(client, OTA_VERSION_URL);
+  int httpCode = http.GET();
+  if (httpCode == HTTP_CODE_OK) {
+    String remoteVersion = http.getString();
+    remoteVersion.trim();
+    DEBUG_PRINT("Remote FW version: ");
+    DEBUG_PRINTLN(remoteVersion);
+    if (remoteVersion != VERSION) {
+      DEBUG_PRINTLN("New firmware available, starting OTA update...");
+      tft.fillScreen(TFT_BLACK);
+      tft.setTextColor(TFT_WHITE, TFT_BLACK);
+      tft.setFont(&fonts::Font2);
+      tft.setTextSize(1);
+      printWrapped("Updating firmware...", 5, false);
+      // t_httpUpdate_return ret = ESPhttpUpdate.update(client, OTA_FIRMWARE_URL, VERSION);
+      // switch(ret) {
+      //   case HTTP_UPDATE_FAILED:
+      //     DEBUG_PRINTLN("Update failed!");
+      //     showError("Update failed!", false);
+      //     break;
+      //   case HTTP_UPDATE_NO_UPDATES:
+      //     DEBUG_PRINTLN("No update needed.");
+      //     break;
+      //   case HTTP_UPDATE_OK:
+      //     DEBUG_PRINTLN("Update successful, rebooting...");
+      //     break;
+      // }
+    } else {
+      DEBUG_PRINTLN("Firmware is up to date.");
+    }
+  } else {
+    DEBUG_PRINTLN("Failed to fetch version info.");
+  }
+  http.end();
 }
 
 ///////////////////////////
