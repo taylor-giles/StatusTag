@@ -12,8 +12,8 @@
 #include <ESP8266httpUpdate.h>
 
 #define VERSION "1.0.0" // Change this for each release
-#define OTA_VERSION_URL "https://raw.githubusercontent.com/<owner>/<repo>/main/version.txt" // Replace with your repo
-#define OTA_FIRMWARE_URL "https://github.com/<owner>/<repo>/releases/latest/download/firmware.bin" // Replace with your binary
+#define OTA_VERSION_URL "https://raw.githubusercontent.com/taylor-giles/StatusTag/master/client/version.txt"
+#define OTA_FIRMWARE_URL "https://raw.githubusercontent.com/taylor-giles/StatusTag/master/client/statustag-client/build/esp8266.esp8266.d1_mini/statustag-client.ino.bin"
 
 bool DEBUG_MODE = false; // Set to false to disable debug output
 #define DEBUG_BEGIN(x)    do { if (DEBUG_MODE) Serial.begin(115200); } while (0)
