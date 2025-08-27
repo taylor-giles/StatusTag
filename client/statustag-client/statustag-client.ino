@@ -11,7 +11,7 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
 
-#define VERSION "1.0.0" // Change this for each release
+#define VERSION "1.0.1" // Change this for each release
 #define OTA_VERSION_URL "https://raw.githubusercontent.com/taylor-giles/StatusTag/master/client/version.txt"
 #define OTA_FIRMWARE_URL "https://raw.githubusercontent.com/taylor-giles/StatusTag/master/client/statustag-client/build/esp8266.esp8266.d1_mini/statustag-client.ino.bin"
 
@@ -106,7 +106,7 @@ char WS_PATH[128];
 // WiFi/WS connection vars
 WebSocketsClient webSocket;
 const char *UI_URL = "http://example.com";  // REPLACE WITH ADDRESS OF UI SERVER
-const char *WS_HOST = "0.0.0.0";       // REPLACE WITH YOUR WS HOST
+const char *WS_HOST = "192.168.1.21";       // REPLACE WITH YOUR WS HOST
 const int WS_PORT = 8080;                   // REPLACE WITH YOUR WS PORT
 bool wifiConnected = false;
 bool wsConnected = false;
@@ -479,7 +479,7 @@ void showError(const char *errorText, bool force) {
 void showSplash() {
   changeScreen(NONE);
   tft.fillScreen(TFT_BLACK);
-  tft.fillCircle(WIDTH/2, HEIGHT/2, WIDTH/5, TFT_WHITE);
+  tft.fillCircle(WIDTH/2, HEIGHT/2, ((WIDTH/2) - 3), TFT_WHITE);
 }
 
 
