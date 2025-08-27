@@ -12,10 +12,10 @@
 #include <ESP8266httpUpdate.h>
 
 #define VERSION "1.0.1" // Change this for each release
-#define OTA_VERSION_URL "https://raw.githubusercontent.com/taylor-giles/StatusTag/master/client/version.txt"
-#define OTA_FIRMWARE_URL "https://raw.githubusercontent.com/taylor-giles/StatusTag/master/client/statustag-client/build/esp8266.esp8266.d1_mini/statustag-client.ino.bin"
+#define OTA_VERSION_URL "https://github.com/taylor-giles/StatusTag/raw/refs/heads/master/client/version.txt"
+#define OTA_FIRMWARE_URL "https://github.com/taylor-giles/StatusTag/raw/refs/heads/master/client/statustag-client/build/esp8266.esp8266.d1_mini/statustag-client.ino.bin"
 
-bool DEBUG_MODE = false; // Set to false to disable debug output
+bool DEBUG_MODE = true; // Set to false to disable debug output
 #define DEBUG_BEGIN(x)    do { if (DEBUG_MODE) Serial.begin(115200); } while (0)
 #define DEBUG_PRINT(x)    do { if (DEBUG_MODE) Serial.print(x); } while (0)
 #define DEBUG_PRINTLN(x)  do { if (DEBUG_MODE) Serial.println(x); } while (0)
@@ -79,6 +79,41 @@ public:
   }
 };
 
+static const char GITHUB_CERT[] PROGMEM = "-----BEGIN CERTIFICATE-----\n" \
+"MIIF3jCCA8agAwIBAgIQAf1tMPyjylGoG7xkDjUDLTANBgkqhkiG9w0BAQwFADCB \n" \
+"iDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCk5ldyBKZXJzZXkxFDASBgNVBAcTC0pl \n" \
+"cnNleSBDaXR5MR4wHAYDVQQKExVUaGUgVVNFUlRSVVNUIE5ldHdvcmsxLjAsBgNV \n" \
+"BAMTJVVTRVJUcnVzdCBSU0EgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkwHhcNMTAw \n" \
+"MjAxMDAwMDAwWhcNMzgwMTE4MjM1OTU5WjCBiDELMAkGA1UEBhMCVVMxEzARBgNV \n" \
+"BAgTCk5ldyBKZXJzZXkxFDASBgNVBAcTC0plcnNleSBDaXR5MR4wHAYDVQQKExVU \n" \
+"aGUgVVNFUlRSVVNUIE5ldHdvcmsxLjAsBgNVBAMTJVVTRVJUcnVzdCBSU0EgQ2Vy \n" \
+"dGlmaWNhdGlvbiBBdXRob3JpdHkwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIK \n" \
+"AoICAQCAEmUXNg7D2wiz0KxXDXbtzSfTTK1Qg2HiqiBNCS1kCdzOiZ/MPans9s/B \n" \
+"3PHTsdZ7NygRK0faOca8Ohm0X6a9fZ2jY0K2dvKpOyuR+OJv0OwWIJAJPuLodMkY \n" \
+"tJHUYmTbf6MG8YgYapAiPLz+E/CHFHv25B+O1ORRxhFnRghRy4YUVD+8M/5+bJz/ \n" \
+"Fp0YvVGONaanZshyZ9shZrHUm3gDwFA66Mzw3LyeTP6vBZY1H1dat//O+T23LLb2 \n" \
+"VN3I5xI6Ta5MirdcmrS3ID3KfyI0rn47aGYBROcBTkZTmzNg95S+UzeQc0PzMsNT \n" \
+"79uq/nROacdrjGCT3sTHDN/hMq7MkztReJVni+49Vv4M0GkPGw/zJSZrM233bkf6 \n" \
+"c0Plfg6lZrEpfDKEY1WJxA3Bk1QwGROs0303p+tdOmw1XNtB1xLaqUkL39iAigmT \n" \
+"Yo61Zs8liM2EuLE/pDkP2QKe6xJMlXzzawWpXhaDzLhn4ugTncxbgtNMs+1b/97l \n" \
+"c6wjOy0AvzVVdAlJ2ElYGn+SNuZRkg7zJn0cTRe8yexDJtC/QV9AqURE9JnnV4ee \n" \
+"UB9XVKg+/XRjL7FQZQnmWEIuQxpMtPAlR1n6BB6T1CZGSlCBst6+eLf8ZxXhyVeE \n" \
+"Hg9j1uliutZfVS7qXMYoCAQlObgOK6nyTJccBz8NUvXt7y+CDwIDAQABo0IwQDAd \n" \
+"BgNVHQ4EFgQUU3m/WqorSs9UgOHYm8Cd8rIDZsswDgYDVR0PAQH/BAQDAgEGMA8G \n" \
+"A1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQEMBQADggIBAFzUfA3P9wF9QZllDHPF \n" \
+"Up/L+M+ZBn8b2kMVn54CVVeWFPFSPCeHlCjtHzoBN6J2/FNQwISbxmtOuowhT6KO \n" \
+"VWKR82kV2LyI48SqC/3vqOlLVSoGIG1VeCkZ7l8wXEskEVX/JJpuXior7gtNn3/3 \n" \
+"ATiUFJVDBwn7YKnuHKsSjKCaXqeYalltiz8I+8jRRa8YFWSQEg9zKC7F4iRO/Fjs \n" \
+"8PRF/iKz6y+O0tlFYQXBl2+odnKPi4w2r78NBc5xjeambx9spnFixdjQg3IM8WcR \n" \
+"iQycE0xyNN+81XHfqnHd4blsjDwSXWXavVcStkNr/+XeTWYRUc+ZruwXtuhxkYze \n" \
+"Sf7dNXGiFSeUHM9h4ya7b6NnJSFd5t0dCy5oGzuCr+yDZ4XUmFF0sbmZgIn/f3gZ \n" \
+"XHlKYC6SQK5MNyosycdiyA5d9zZbyuAlJQG03RoHnHcAP9Dc1ew91Pq7P8yF1m9/ \n" \
+"qS3fuQL39ZeatTXaw2ewh0qpKJ4jjv9cJ2vhsE/zB+4ALtRZh8tSQZXq9EfX7mRB \n" \
+"VXyNWQKV3WKdwrnuWih0hKWbt5DHDAff9Yk2dDLWKMGwsAvgnEzDHNb842m1R0aB \n" \
+"L6KCq9NjRHDEjf8tM7qtj3u1cIiuPhnPQCjY/MiQu12ZIvVS5ljFH4gxQ+6IHdfG \n" \
+"jjxDah2nGN59PRbxYvnKkKj9 \n" \
+"-----END CERTIFICATE----- \n";
+BearSSL::X509List cert(GITHUB_CERT);
 LGFX_ST7735 tft;
 AnimatedGIF gif;
 
@@ -106,7 +141,7 @@ char WS_PATH[128];
 // WiFi/WS connection vars
 WebSocketsClient webSocket;
 const char *UI_URL = "http://example.com";  // REPLACE WITH ADDRESS OF UI SERVER
-const char *WS_HOST = "192.168.1.21";       // REPLACE WITH YOUR WS HOST
+const char *WS_HOST = "0.0.0.0";       // REPLACE WITH YOUR WS HOST
 const int WS_PORT = 8080;                   // REPLACE WITH YOUR WS PORT
 bool wifiConnected = false;
 bool wsConnected = false;
@@ -161,9 +196,6 @@ void setup() {
   DEBUG_PRINTLN(WS_PATH);
   DEBUG_PRINTLN(WiFi.macAddress());
 
-  // Check for firmware update
-  checkForOTAUpdate();
-
   // Device ID setup
   if (LittleFS.exists("/ID.txt")) {
     File idFile = LittleFS.open("/ID.txt", "r");
@@ -195,6 +227,9 @@ void setup() {
     DEBUG_PRINT("Local IP: ");
     DEBUG_PRINTLN(WiFi.localIP());
     delay(50);
+
+    // Check for firmware update
+    checkForOTAUpdate();
 
     // Set up web socket connection
     webSocket.begin(WS_HOST, WS_PORT, WS_PATH);
@@ -479,7 +514,7 @@ void showError(const char *errorText, bool force) {
 void showSplash() {
   changeScreen(NONE);
   tft.fillScreen(TFT_BLACK);
-  tft.fillCircle(WIDTH/2, HEIGHT/2, ((WIDTH/2) - 3), TFT_WHITE);
+  tft.fillCircle(WIDTH/2, HEIGHT/2, (WIDTH/2) - 3, TFT_WHITE);
 }
 
 
@@ -559,9 +594,12 @@ void restoreScreen() {
 
 void checkForOTAUpdate() {
   if (!wifiConnected) return;
-  WiFiClient client;
+  WiFiClientSecure client;
+  client.setInsecure();
+  client.setBufferSizes(1024, 1024);
   HTTPClient http;
   http.begin(client, OTA_VERSION_URL);
+  http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
     String remoteVersion = http.getString();
@@ -575,24 +613,28 @@ void checkForOTAUpdate() {
       tft.setFont(&fonts::Font2);
       tft.setTextSize(1);
       printWrapped("Updating firmware...", 5, false);
-      // t_httpUpdate_return ret = ESPhttpUpdate.update(client, OTA_FIRMWARE_URL, VERSION);
-      // switch(ret) {
-      //   case HTTP_UPDATE_FAILED:
-      //     DEBUG_PRINTLN("Update failed!");
-      //     showError("Update failed!", false);
-      //     break;
-      //   case HTTP_UPDATE_NO_UPDATES:
-      //     DEBUG_PRINTLN("No update needed.");
-      //     break;
-      //   case HTTP_UPDATE_OK:
-      //     DEBUG_PRINTLN("Update successful, rebooting...");
-      //     break;
-      // }
+      t_httpUpdate_return ret = ESPhttpUpdate.update(client, OTA_FIRMWARE_URL, VERSION);
+      switch(ret) {
+        case HTTP_UPDATE_FAILED:
+          DEBUG_PRINTLN("Update failed!");
+          showError("Update failed!", false);
+          break;
+        case HTTP_UPDATE_NO_UPDATES:
+          DEBUG_PRINTLN("No update needed.");
+          break;
+        case HTTP_UPDATE_OK:
+          DEBUG_PRINTLN("Update successful, rebooting...");
+          break;
+      }
     } else {
       DEBUG_PRINTLN("Firmware is up to date.");
     }
   } else {
     DEBUG_PRINTLN("Failed to fetch version info.");
+    DEBUG_PRINT("HTTP code: ");
+    DEBUG_PRINTLN(httpCode);
+    DEBUG_PRINT("HTTP error: ");
+    DEBUG_PRINTLN(http.errorToString(httpCode));
   }
   http.end();
 }
