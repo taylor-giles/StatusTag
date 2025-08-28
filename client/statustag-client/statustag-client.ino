@@ -11,9 +11,14 @@
 #include <ESP8266HTTPClient.h>
 #include <ESP8266httpUpdate.h>
 
-#define VERSION "1.0.1" // Change this for each release
-#define OTA_VERSION_URL "https://github.com/taylor-giles/StatusTag/raw/refs/heads/master/client/version.txt"
-#define OTA_FIRMWARE_URL "https://github.com/taylor-giles/StatusTag/raw/refs/heads/master/client/statustag-client/build/esp8266.esp8266.d1_mini/statustag-client.ino.bin"
+// TO PUSH OTA UPDATE:
+//  1. Increment this VERSION variable
+//  2. Update version.txt to match this variable
+//  3. Generate new binaries (Sketch > Export Compiled Binary [Ctrl+Alt+S])
+//  4. Push to GitHub
+#define VERSION "1.0.1"
+#define OTA_VERSION_URL "https://raw.githubusercontent.com/taylor-giles/StatusTag/refs/heads/master/client/version.txt"
+#define OTA_FIRMWARE_URL "https://raw.githubusercontent.com/taylor-giles/StatusTag/refs/heads/master/client/statustag-client/build/esp8266.esp8266.d1_mini/statustag-client.ino.bin"
 
 bool DEBUG_MODE = true; // Set to false to disable debug output
 #define DEBUG_BEGIN(x)    do { if (DEBUG_MODE) Serial.begin(115200); } while (0)
@@ -79,43 +84,44 @@ public:
   }
 };
 
-static const char GITHUB_CERT[] PROGMEM = "-----BEGIN CERTIFICATE-----\n" \
-"MIIF3jCCA8agAwIBAgIQAf1tMPyjylGoG7xkDjUDLTANBgkqhkiG9w0BAQwFADCB \n" \
-"iDELMAkGA1UEBhMCVVMxEzARBgNVBAgTCk5ldyBKZXJzZXkxFDASBgNVBAcTC0pl \n" \
-"cnNleSBDaXR5MR4wHAYDVQQKExVUaGUgVVNFUlRSVVNUIE5ldHdvcmsxLjAsBgNV \n" \
-"BAMTJVVTRVJUcnVzdCBSU0EgQ2VydGlmaWNhdGlvbiBBdXRob3JpdHkwHhcNMTAw \n" \
-"MjAxMDAwMDAwWhcNMzgwMTE4MjM1OTU5WjCBiDELMAkGA1UEBhMCVVMxEzARBgNV \n" \
-"BAgTCk5ldyBKZXJzZXkxFDASBgNVBAcTC0plcnNleSBDaXR5MR4wHAYDVQQKExVU \n" \
-"aGUgVVNFUlRSVVNUIE5ldHdvcmsxLjAsBgNVBAMTJVVTRVJUcnVzdCBSU0EgQ2Vy \n" \
-"dGlmaWNhdGlvbiBBdXRob3JpdHkwggIiMA0GCSqGSIb3DQEBAQUAA4ICDwAwggIK \n" \
-"AoICAQCAEmUXNg7D2wiz0KxXDXbtzSfTTK1Qg2HiqiBNCS1kCdzOiZ/MPans9s/B \n" \
-"3PHTsdZ7NygRK0faOca8Ohm0X6a9fZ2jY0K2dvKpOyuR+OJv0OwWIJAJPuLodMkY \n" \
-"tJHUYmTbf6MG8YgYapAiPLz+E/CHFHv25B+O1ORRxhFnRghRy4YUVD+8M/5+bJz/ \n" \
-"Fp0YvVGONaanZshyZ9shZrHUm3gDwFA66Mzw3LyeTP6vBZY1H1dat//O+T23LLb2 \n" \
-"VN3I5xI6Ta5MirdcmrS3ID3KfyI0rn47aGYBROcBTkZTmzNg95S+UzeQc0PzMsNT \n" \
-"79uq/nROacdrjGCT3sTHDN/hMq7MkztReJVni+49Vv4M0GkPGw/zJSZrM233bkf6 \n" \
-"c0Plfg6lZrEpfDKEY1WJxA3Bk1QwGROs0303p+tdOmw1XNtB1xLaqUkL39iAigmT \n" \
-"Yo61Zs8liM2EuLE/pDkP2QKe6xJMlXzzawWpXhaDzLhn4ugTncxbgtNMs+1b/97l \n" \
-"c6wjOy0AvzVVdAlJ2ElYGn+SNuZRkg7zJn0cTRe8yexDJtC/QV9AqURE9JnnV4ee \n" \
-"UB9XVKg+/XRjL7FQZQnmWEIuQxpMtPAlR1n6BB6T1CZGSlCBst6+eLf8ZxXhyVeE \n" \
-"Hg9j1uliutZfVS7qXMYoCAQlObgOK6nyTJccBz8NUvXt7y+CDwIDAQABo0IwQDAd \n" \
-"BgNVHQ4EFgQUU3m/WqorSs9UgOHYm8Cd8rIDZsswDgYDVR0PAQH/BAQDAgEGMA8G \n" \
-"A1UdEwEB/wQFMAMBAf8wDQYJKoZIhvcNAQEMBQADggIBAFzUfA3P9wF9QZllDHPF \n" \
-"Up/L+M+ZBn8b2kMVn54CVVeWFPFSPCeHlCjtHzoBN6J2/FNQwISbxmtOuowhT6KO \n" \
-"VWKR82kV2LyI48SqC/3vqOlLVSoGIG1VeCkZ7l8wXEskEVX/JJpuXior7gtNn3/3 \n" \
-"ATiUFJVDBwn7YKnuHKsSjKCaXqeYalltiz8I+8jRRa8YFWSQEg9zKC7F4iRO/Fjs \n" \
-"8PRF/iKz6y+O0tlFYQXBl2+odnKPi4w2r78NBc5xjeambx9spnFixdjQg3IM8WcR \n" \
-"iQycE0xyNN+81XHfqnHd4blsjDwSXWXavVcStkNr/+XeTWYRUc+ZruwXtuhxkYze \n" \
-"Sf7dNXGiFSeUHM9h4ya7b6NnJSFd5t0dCy5oGzuCr+yDZ4XUmFF0sbmZgIn/f3gZ \n" \
-"XHlKYC6SQK5MNyosycdiyA5d9zZbyuAlJQG03RoHnHcAP9Dc1ew91Pq7P8yF1m9/ \n" \
-"qS3fuQL39ZeatTXaw2ewh0qpKJ4jjv9cJ2vhsE/zB+4ALtRZh8tSQZXq9EfX7mRB \n" \
-"VXyNWQKV3WKdwrnuWih0hKWbt5DHDAff9Yk2dDLWKMGwsAvgnEzDHNb842m1R0aB \n" \
-"L6KCq9NjRHDEjf8tM7qtj3u1cIiuPhnPQCjY/MiQu12ZIvVS5ljFH4gxQ+6IHdfG \n" \
-"jjxDah2nGN59PRbxYvnKkKj9 \n" \
-"-----END CERTIFICATE----- \n";
-BearSSL::X509List cert(GITHUB_CERT);
+static const char ROOT_CERT[] PROGMEM = R"EOF(
+-----BEGIN CERTIFICATE-----
+MIIFgTCCBGmgAwIBAgIQOXJEOvkit1HX02wQ3TE1lTANBgkqhkiG9w0BAQwFADB7
+MQswCQYDVQQGEwJHQjEbMBkGA1UECAwSR3JlYXRlciBNYW5jaGVzdGVyMRAwDgYD
+VQQHDAdTYWxmb3JkMRowGAYDVQQKDBFDb21vZG8gQ0EgTGltaXRlZDEhMB8GA1UE
+AwwYQUFBIENlcnRpZmljYXRlIFNlcnZpY2VzMB4XDTE5MDMxMjAwMDAwMFoXDTI4
+MTIzMTIzNTk1OVowgYgxCzAJBgNVBAYTAlVTMRMwEQYDVQQIEwpOZXcgSmVyc2V5
+MRQwEgYDVQQHEwtKZXJzZXkgQ2l0eTEeMBwGA1UEChMVVGhlIFVTRVJUUlVTVCBO
+ZXR3b3JrMS4wLAYDVQQDEyVVU0VSVHJ1c3QgUlNBIENlcnRpZmljYXRpb24gQXV0
+aG9yaXR5MIICIjANBgkqhkiG9w0BAQEFAAOCAg8AMIICCgKCAgEAgBJlFzYOw9sI
+s9CsVw127c0n00ytUINh4qogTQktZAnczomfzD2p7PbPwdzx07HWezcoEStH2jnG
+vDoZtF+mvX2do2NCtnbyqTsrkfjib9DsFiCQCT7i6HTJGLSR1GJk23+jBvGIGGqQ
+Ijy8/hPwhxR79uQfjtTkUcYRZ0YIUcuGFFQ/vDP+fmyc/xadGL1RjjWmp2bIcmfb
+IWax1Jt4A8BQOujM8Ny8nkz+rwWWNR9XWrf/zvk9tyy29lTdyOcSOk2uTIq3XJq0
+tyA9yn8iNK5+O2hmAUTnAU5GU5szYPeUvlM3kHND8zLDU+/bqv50TmnHa4xgk97E
+xwzf4TKuzJM7UXiVZ4vuPVb+DNBpDxsP8yUmazNt925H+nND5X4OpWaxKXwyhGNV
+icQNwZNUMBkTrNN9N6frXTpsNVzbQdcS2qlJC9/YgIoJk2KOtWbPJYjNhLixP6Q5
+D9kCnusSTJV882sFqV4Wg8y4Z+LoE53MW4LTTLPtW//e5XOsIzstAL81VXQJSdhJ
+WBp/kjbmUZIO8yZ9HE0XvMnsQybQv0FfQKlERPSZ51eHnlAfV1SoPv10Yy+xUGUJ
+5lhCLkMaTLTwJUdZ+gQek9QmRkpQgbLevni3/GcV4clXhB4PY9bpYrrWX1Uu6lzG
+KAgEJTm4Diup8kyXHAc/DVL17e8vgg8CAwEAAaOB8jCB7zAfBgNVHSMEGDAWgBSg
+EQojPpbxB+zirynvgqV/0DCktDAdBgNVHQ4EFgQUU3m/WqorSs9UgOHYm8Cd8rID
+ZsswDgYDVR0PAQH/BAQDAgGGMA8GA1UdEwEB/wQFMAMBAf8wEQYDVR0gBAowCDAG
+BgRVHSAAMEMGA1UdHwQ8MDowOKA2oDSGMmh0dHA6Ly9jcmwuY29tb2RvY2EuY29t
+L0FBQUNlcnRpZmljYXRlU2VydmljZXMuY3JsMDQGCCsGAQUFBwEBBCgwJjAkBggr
+BgEFBQcwAYYYaHR0cDovL29jc3AuY29tb2RvY2EuY29tMA0GCSqGSIb3DQEBDAUA
+A4IBAQAYh1HcdCE9nIrgJ7cz0C7M7PDmy14R3iJvm3WOnnL+5Nb+qh+cli3vA0p+
+rvSNb3I8QzvAP+u431yqqcau8vzY7qN7Q/aGNnwU4M309z/+3ri0ivCRlv79Q2R+
+/czSAaF9ffgZGclCKxO/WIu6pKJmBHaIkU4MiRTOok3JMrO66BQavHHxW/BBC5gA
+CiIDEOUMsfnNkjcZ7Tvx5Dq2+UUTJnWvu6rvP3t3O9LEApE9GQDTF1w52z97GA1F
+zZOFli9d31kWTz9RvdVFGD/tSo7oBmF0Ixa1DVBzJ0RHfxBdiSprhTEUxOipakyA
+vGp4z7h/jnZymQyd/teRCBaho1+V
+-----END CERTIFICATE-----
+)EOF";
+BearSSL::X509List cert(ROOT_CERT);
+
 LGFX_ST7735 tft;
-AnimatedGIF gif;
+AnimatedGIF* gif = nullptr;
 
 // Incoming message types
 #define NEW_MSG 1
@@ -135,18 +141,19 @@ AnimatedGIF gif;
 #define MAX_FILE_SIZE 2000000
 #define ID_LENGTH 6
 #define UNIQUE_ID_SUFFIX 'A'
+#define OTA_TIMEOUT 120000
 char deviceID[ID_LENGTH] = { 0 };
 char WS_PATH[128];
 
 // WiFi/WS connection vars
-WebSocketsClient webSocket;
+WiFiManager wifiManager;
+WebSocketsClient* webSocket = nullptr;
 const char *UI_URL = "http://example.com";  // REPLACE WITH ADDRESS OF UI SERVER
-const char *WS_HOST = "0.0.0.0";       // REPLACE WITH YOUR WS HOST
+const char *WS_HOST = "0.0.0.0";            // REPLACE WITH YOUR WS HOST
 const int WS_PORT = 8080;                   // REPLACE WITH YOUR WS PORT
 bool wifiConnected = false;
 bool wsConnected = false;
 uint16_t seqnum = 0;
-WiFiManager wifiManager;
 const char *AP_SSID = "StatusTagSetup";  // SSID of setup AP network
 const char *AP_PASS = "GettingStarted";  // Password of setup AP network
 
@@ -168,7 +175,6 @@ bool isSleeping = false;
 unsigned long buttonPressStart = 0;
 bool buttonWasPressed = false;
 void enterSleep();
-void wakeUp();
 
 void setup() {
   pinMode(BUTTON_PIN, INPUT);
@@ -176,9 +182,10 @@ void setup() {
   pinMode(BACKLIGHT_PIN, OUTPUT);
 
   tft.init();
+
   showSplash();
   digitalWrite(BACKLIGHT_PIN, HIGH);
-  
+
   DEBUG_BEGIN();
   
   if (!LittleFS.begin()) {
@@ -193,6 +200,7 @@ void setup() {
       delay(1000);
     }
   }
+  DEBUG_PRINT("WS path:");
   DEBUG_PRINTLN(WS_PATH);
   DEBUG_PRINTLN(WiFi.macAddress());
 
@@ -232,10 +240,12 @@ void setup() {
     checkForOTAUpdate();
 
     // Set up web socket connection
-    webSocket.begin(WS_HOST, WS_PORT, WS_PATH);
-    webSocket.onEvent(webSocketEvent);
+    webSocket = new WebSocketsClient();
+    webSocket->begin(WS_HOST, WS_PORT, WS_PATH);
+    webSocket->onEvent(webSocketEvent);
 
-    gif.begin(BIG_ENDIAN_PIXELS);
+    gif = new AnimatedGIF();
+    gif->begin(BIG_ENDIAN_PIXELS);
   }
 }
 
@@ -249,15 +259,15 @@ void loop() {
   }
 
   if (wifiConnected) {
-    webSocket.loop();
+    webSocket->loop();
     if (isGifActive && !isGifFileOpen && !loadingData) {
-      if (gif.open(GIF_FILE_NAME, GIFOpenFile, GIFCloseFile, GIFReadFile,
+      if (gif->open(GIF_FILE_NAME, GIFOpenFile, GIFCloseFile, GIFReadFile,
                    GIFSeekFile, GIFDraw)) {
         changeScreen(IMAGE);
-        while (gif.playFrame(true, NULL)) {
+        while (gif->playFrame(true, NULL)) {
           yield();
         }
-        gif.close();
+        gif->close();
       } else {
         DEBUG_PRINTLN("ERROR: Failed to load GIF file");
       }
@@ -265,7 +275,7 @@ void loop() {
 
     if (wsConnected && loadingData && readyForNextPacket) {
       readyForNextPacket = false;
-      webSocket.sendBIN((uint8_t *)&seqnum, sizeof(seqnum));
+      webSocket->sendBIN((uint8_t *)&seqnum, sizeof(seqnum));
     }
   } else {
     //WifiManager config portal processing
@@ -514,7 +524,7 @@ void showError(const char *errorText, bool force) {
 void showSplash() {
   changeScreen(NONE);
   tft.fillScreen(TFT_BLACK);
-  tft.fillCircle(WIDTH/2, HEIGHT/2, (WIDTH/2) - 3, TFT_WHITE);
+  tft.fillCircle(WIDTH/2, HEIGHT/2, (WIDTH/2)-3, TFT_WHITE);
 }
 
 
@@ -595,35 +605,56 @@ void restoreScreen() {
 void checkForOTAUpdate() {
   if (!wifiConnected) return;
   WiFiClientSecure client;
-  client.setInsecure();
-  client.setBufferSizes(1024, 1024);
+
+  // Update time from NTP for SSL cert verification
+  DEBUG_PRINTLN("Updating time for SSL");
+  configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  while (time(nullptr) < 8 * 3600 * 2) {
+    delay(50);
+    DEBUG_PRINT(".");
+  }
+  DEBUG_PRINTLN(time(nullptr));
+  client.setTrustAnchors(&cert);
+
+  // Get remote available version
   HTTPClient http;
   http.begin(client, OTA_VERSION_URL);
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
-    String remoteVersion = http.getString();
-    remoteVersion.trim();
-    DEBUG_PRINT("Remote FW version: ");
+    char remoteVersion[8] = {0};
+    int len=http.getStream().readBytes(remoteVersion, sizeof(remoteVersion) - 1);
+    remoteVersion[len] = '\0';
+    http.end();
+    DEBUG_PRINT("Remote version: ");
     DEBUG_PRINTLN(remoteVersion);
-    if (remoteVersion != VERSION) {
+
+    // If remote version does not match current version, update from remote
+    if (strcmp(remoteVersion, VERSION) != 0) {
       DEBUG_PRINTLN("New firmware available, starting OTA update...");
       tft.fillScreen(TFT_BLACK);
       tft.setTextColor(TFT_WHITE, TFT_BLACK);
       tft.setFont(&fonts::Font2);
       tft.setTextSize(1);
-      printWrapped("Updating firmware...", 5, false);
+      printWrapped("Updating firmware. This may take a while.", 5, false);
+      ESPhttpUpdate.setClientTimeout(OTA_TIMEOUT);
+      ESPhttpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
+      ESPhttpUpdate.rebootOnUpdate(true);
       t_httpUpdate_return ret = ESPhttpUpdate.update(client, OTA_FIRMWARE_URL, VERSION);
       switch(ret) {
         case HTTP_UPDATE_FAILED:
-          DEBUG_PRINTLN("Update failed!");
-          showError("Update failed!", false);
+          DEBUG_PRINTF("HTTP_UPDATE_FAILED Error (%d): %s\n",
+                  ESPhttpUpdate.getLastError(),
+                  ESPhttpUpdate.getLastErrorString().c_str());
+          char errorText[128];
+          snprintf(errorText, sizeof(errorText), "Update Failed! \n : %s", ESPhttpUpdate.getLastErrorString().c_str());
+          showError(errorText, false);
           break;
         case HTTP_UPDATE_NO_UPDATES:
           DEBUG_PRINTLN("No update needed.");
           break;
         case HTTP_UPDATE_OK:
-          DEBUG_PRINTLN("Update successful, rebooting...");
+          DEBUG_PRINTLN("Update successful!");
           break;
       }
     } else {
@@ -635,8 +666,10 @@ void checkForOTAUpdate() {
     DEBUG_PRINTLN(httpCode);
     DEBUG_PRINT("HTTP error: ");
     DEBUG_PRINTLN(http.errorToString(httpCode));
+    DEBUG_PRINT("HTTP Payload: ");
+    DEBUG_PRINTLN(http.getString());
+    http.end();
   }
-  http.end();
 }
 
 ///////////////////////////
@@ -736,5 +769,3 @@ void GIFDraw(GIFDRAW *pDraw) {
     tft.pushRect(pDraw->iX, y, iWidth, 1, (uint16_t *)usTemp);
   }
 }
-
-
