@@ -16,15 +16,27 @@
 //  2. Update version.txt to match this variable
 //  3. Generate new binaries (Sketch > Export Compiled Binary [Ctrl+Alt+S])
 //  4. Push to GitHub
-#define VERSION "1.0.1"
+#define VERSION "1.0.2"
 #define OTA_VERSION_URL "https://raw.githubusercontent.com/taylor-giles/StatusTag/refs/heads/master/client/version.txt"
 #define OTA_FIRMWARE_URL "https://raw.githubusercontent.com/taylor-giles/StatusTag/refs/heads/master/client/statustag-client/build/esp8266.esp8266.d1_mini/statustag-client.ino.bin"
 
-bool DEBUG_MODE = true; // Set to false to disable debug output
-#define DEBUG_BEGIN(x)    do { if (DEBUG_MODE) Serial.begin(115200); } while (0)
-#define DEBUG_PRINT(x)    do { if (DEBUG_MODE) Serial.print(x); } while (0)
-#define DEBUG_PRINTLN(x)  do { if (DEBUG_MODE) Serial.println(x); } while (0)
-#define DEBUG_PRINTF(...) do { if (DEBUG_MODE) Serial.printf(__VA_ARGS__); } while (0)
+bool DEBUG_MODE = true;  // Set to false to disable debug output
+#define DEBUG_BEGIN(x) \
+  do { \
+    if (DEBUG_MODE) Serial.begin(x); \
+  } while (0)
+#define DEBUG_PRINT(x) \
+  do { \
+    if (DEBUG_MODE) Serial.print(x); \
+  } while (0)
+#define DEBUG_PRINTLN(x) \
+  do { \
+    if (DEBUG_MODE) Serial.println(x); \
+  } while (0)
+#define DEBUG_PRINTF(...) \
+  do { \
+    if (DEBUG_MODE) Serial.printf(__VA_ARGS__); \
+  } while (0)
 
 enum Screen {
   SETUP_STEP_1 = 0,
@@ -121,7 +133,7 @@ vGp4z7h/jnZymQyd/teRCBaho1+V
 BearSSL::X509List cert(ROOT_CERT);
 
 LGFX_ST7735 tft;
-AnimatedGIF* gif = nullptr;
+AnimatedGIF *gif = nullptr;
 
 // Incoming message types
 #define NEW_MSG 1
@@ -139,17 +151,16 @@ AnimatedGIF* gif = nullptr;
 #define HEIGHT 160
 #define BUFFER_SIZE 10000
 #define MAX_FILE_SIZE 2000000
-#define ID_LENGTH 6
-#define UNIQUE_ID_SUFFIX 'A'
+#define ID_LENGTH 8
 #define OTA_TIMEOUT 120000
 char deviceID[ID_LENGTH] = { 0 };
 char WS_PATH[128];
 
 // WiFi/WS connection vars
 WiFiManager wifiManager;
-WebSocketsClient* webSocket = nullptr;
+WebSocketsClient *webSocket = nullptr;
 const char *UI_URL = "http://example.com";  // REPLACE WITH ADDRESS OF UI SERVER
-const char *WS_HOST = "0.0.0.0";            // REPLACE WITH YOUR WS HOST
+const char *WS_HOST = "192.168.1.21";       // REPLACE WITH YOUR WS HOST
 const int WS_PORT = 8080;                   // REPLACE WITH YOUR WS PORT
 bool wifiConnected = false;
 bool wsConnected = false;
@@ -170,11 +181,11 @@ bool readyForNextPacket = false;
 Screen screenShown = NONE;
 Screen prevScreen = NONE;
 const char *SERVER_UNREACHABLE = "Unable to reach server";
-const int resetPressTime = 10000; // Long-press duration for factory reset
-bool isSleeping = false;
+const int resetPressTime = 10000;  // Long-press duration for factory reset
+volatile bool isSleeping = false;
+volatile bool didJustWake = false;
 unsigned long buttonPressStart = 0;
 bool buttonWasPressed = false;
-void enterSleep();
 
 void setup() {
   pinMode(BUTTON_PIN, INPUT);
@@ -186,14 +197,14 @@ void setup() {
   showSplash();
   digitalWrite(BACKLIGHT_PIN, HIGH);
 
-  DEBUG_BEGIN();
-  
+  DEBUG_BEGIN(115200);
+
   if (!LittleFS.begin()) {
     DEBUG_PRINTLN("Failed to mount LittleFS");
     return;
   }
 
-  if(DEBUG_MODE){
+  if (DEBUG_MODE) {
     for (uint8_t t = 3; t > 0; t--) {
       DEBUG_PRINTF("[SETUP] BOOT WAIT %d...\n", t);
       Serial.flush();
@@ -212,10 +223,9 @@ void setup() {
     idFile.close();
   } else {
     const char charset[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    for (int i = 0; i < ID_LENGTH - 1; ++i) {
+    for (int i = 0; i < ID_LENGTH; ++i) {
       deviceID[i] = charset[random(0, sizeof(charset) - 1)];
     }
-    deviceID[ID_LENGTH - 1] = UNIQUE_ID_SUFFIX;
     deviceID[ID_LENGTH] = '\0';
     File idFile = LittleFS.open("/ID.txt", "w");
     idFile.write((uint8_t *)deviceID, ID_LENGTH);
@@ -230,7 +240,6 @@ void setup() {
   });
   wifiConnected = wifiManager.autoConnect(AP_SSID, AP_PASS);
   if (wifiConnected) {
-    tft.fillScreen(TFT_BLACK);
     DEBUG_PRINTLN("WiFi connected!");
     DEBUG_PRINT("Local IP: ");
     DEBUG_PRINTLN(WiFi.localIP());
@@ -243,26 +252,29 @@ void setup() {
     webSocket = new WebSocketsClient();
     webSocket->begin(WS_HOST, WS_PORT, WS_PATH);
     webSocket->onEvent(webSocketEvent);
+    webSocket->setReconnectInterval(500);
 
+    // Initialize AnimatedGIF instance
     gif = new AnimatedGIF();
     gif->begin(BIG_ENDIAN_PIXELS);
   }
 }
 
 void loop() {
-  handleButton();
   if (isSleeping) {
-    // While sleeping, do nothing but wait for wakeup
-    gpio_pin_wakeup_enable(GPIO_ID_PIN(BUTTON_PIN), GPIO_PIN_INTR_LOLEVEL);
     delay(50);
     return;
+  } else if (didJustWake) {
+    wakeUp();
+  } else {
+    handleButton();
   }
 
   if (wifiConnected) {
     webSocket->loop();
     if (isGifActive && !isGifFileOpen && !loadingData) {
       if (gif->open(GIF_FILE_NAME, GIFOpenFile, GIFCloseFile, GIFReadFile,
-                   GIFSeekFile, GIFDraw)) {
+                    GIFSeekFile, GIFDraw)) {
         changeScreen(IMAGE);
         while (gif->playFrame(true, NULL)) {
           yield();
@@ -285,11 +297,11 @@ void loop() {
 
     // Show setup page - Step 2 if a device has already connected to the AP, Step 1 otherwise
     if (WiFi.softAPgetStationNum() > 0) {
-      if(screenShown != ERROR){
+      if (screenShown != ERROR) {
         changeScreen(SETUP_STEP_2);
       }
     } else {
-      if(screenShown != ERROR){
+      if (screenShown != ERROR) {
         changeScreen(SETUP_STEP_1);
       }
     }
@@ -368,11 +380,11 @@ void handleButton() {
       wifiManager.resetSettings();
       LittleFS.format();
       ESP.restart();
-    } else if(pressDuration > (resetPressTime / 2)){
+    } else if (pressDuration > (resetPressTime / 2)) {
       restoreScreen();
     } else if (pressDuration > 20) {
       // Short press: toggle sleep/awake
-      DEBUG_PRINT("Short press detected: toggling sleep mode: ");
+      DEBUG_PRINT("Short press detected: ");
       DEBUG_PRINTLN(isSleeping ? "Waking up" : "Entering sleep");
       if (!isSleeping) {
         enterSleep();
@@ -420,15 +432,37 @@ void enterSleep() {
   DEBUG_PRINTLN("Entering light sleep mode");
   tft.sleep();
   digitalWrite(BACKLIGHT_PIN, LOW);
-  delay(100);
   isSleeping = true;
-  // Enter light sleep (will wake on button press)
+
+  // Enter light sleep
   // Disable timer wake, enable GPIO wake
   wifi_set_opmode(NULL_MODE);
   wifi_fpm_set_sleep_type(LIGHT_SLEEP_T);
   wifi_fpm_open();
-  wifi_fpm_set_wakeup_cb(ESP.restart);
-  wifi_fpm_do_sleep(0xFFFFFFF);  // sleep indefinitely until GPIO wake
+  gpio_pin_wakeup_enable(GPIO_ID_PIN(BUTTON_PIN), GPIO_PIN_INTR_LOLEVEL);
+  wifi_fpm_set_wakeup_cb(handleWake);
+  delay(500); // Give it time to tear down WiFi connection
+  wifi_fpm_do_sleep(0xFFFFFFF);  // Sleep indefinitely until GPIO wake
+  delay(500); // Give it time to fall asleep
+}
+
+void handleWake() {
+  isSleeping = false;
+  didJustWake = true;
+}
+
+void wakeUp() {
+  delay(50);
+  didJustWake = false;
+  gpio_pin_wakeup_disable();
+  wifi_fpm_close();
+  wifi_set_opmode(STATION_MODE);
+  tft.wakeup();
+  showSplash();
+  digitalWrite(BACKLIGHT_PIN, HIGH);
+  if (!wifiManager.autoConnect()) {
+    ESP.restart();
+  }
 }
 
 void showSetupStep1() {
@@ -524,9 +558,12 @@ void showError(const char *errorText, bool force) {
 void showSplash() {
   changeScreen(NONE);
   tft.fillScreen(TFT_BLACK);
-  tft.fillCircle(WIDTH/2, HEIGHT/2, (WIDTH/2)-3, TFT_WHITE);
+  tft.fillCircle(WIDTH / 2, HEIGHT / 2, (WIDTH / 5), TFT_WHITE);
+  tft.setTextColor(TFT_WHITE, TFT_BLACK);
+  tft.setFont(&fonts::Font2);
+  tft.setTextSize(0.5);
+  printWrapped(VERSION, HEIGHT - tft.fontHeight(), false);
 }
-
 
 void printWrapped(const char *text, int startY, bool centered) {
   int fontHeight = tft.fontHeight();
@@ -577,15 +614,15 @@ bool changeScreen(Screen newScreen) {
   }
 
   // Show setup screens
-  if(newScreen == SETUP_STEP_2){
+  if (newScreen == SETUP_STEP_2) {
     showSetupStep2();
   }
-  if(newScreen == SETUP_STEP_1){
+  if (newScreen == SETUP_STEP_1) {
     showSetupStep1();
   }
 
   // Show welcome screen
-  if(newScreen == WELCOME) {
+  if (newScreen == WELCOME) {
     showWelcome();
   }
 
@@ -597,7 +634,7 @@ bool changeScreen(Screen newScreen) {
 
 // Restore previous screen state
 void restoreScreen() {
-  if(changeScreen(prevScreen)){
+  if (changeScreen(prevScreen)) {
     prevScreen = NONE;
   }
 }
@@ -607,12 +644,18 @@ void checkForOTAUpdate() {
   WiFiClientSecure client;
 
   // Update time from NTP for SSL cert verification
-  DEBUG_PRINTLN("Updating time for SSL");
+  DEBUG_PRINT("Updating time for SSL");
   configTime(0, 0, "pool.ntp.org", "time.nist.gov");
+  long ntpStartTime = millis();
   while (time(nullptr) < 8 * 3600 * 2) {
-    delay(50);
+    delay(100);
     DEBUG_PRINT(".");
+    if ((millis() - ntpStartTime) > OTA_TIMEOUT) {
+      client.stop();
+      return;
+    }
   }
+
   DEBUG_PRINTLN(time(nullptr));
   client.setTrustAnchors(&cert);
 
@@ -622,15 +665,16 @@ void checkForOTAUpdate() {
   http.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
   int httpCode = http.GET();
   if (httpCode == HTTP_CODE_OK) {
-    char remoteVersion[8] = {0};
-    int len=http.getStream().readBytes(remoteVersion, sizeof(remoteVersion) - 1);
+    char remoteVersion[8] = { 0 };
+    int len = http.getStream().readBytes(remoteVersion, sizeof(remoteVersion) - 1);
     remoteVersion[len] = '\0';
     http.end();
-    DEBUG_PRINT("Remote version: ");
-    DEBUG_PRINTLN(remoteVersion);
+    DEBUG_PRINTF("Current version: %s\n", VERSION);
+    DEBUG_PRINTF("Remote version: %s\n", remoteVersion);
 
     // If remote version does not match current version, update from remote
-    if (strcmp(remoteVersion, VERSION) != 0) {
+    int minLen = min(strlen(VERSION), strlen(remoteVersion));
+    if (strncmp(remoteVersion, VERSION, minLen) != 0) {
       DEBUG_PRINTLN("New firmware available, starting OTA update...");
       tft.fillScreen(TFT_BLACK);
       tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -641,11 +685,11 @@ void checkForOTAUpdate() {
       ESPhttpUpdate.setFollowRedirects(HTTPC_STRICT_FOLLOW_REDIRECTS);
       ESPhttpUpdate.rebootOnUpdate(true);
       t_httpUpdate_return ret = ESPhttpUpdate.update(client, OTA_FIRMWARE_URL, VERSION);
-      switch(ret) {
+      switch (ret) {
         case HTTP_UPDATE_FAILED:
           DEBUG_PRINTF("HTTP_UPDATE_FAILED Error (%d): %s\n",
-                  ESPhttpUpdate.getLastError(),
-                  ESPhttpUpdate.getLastErrorString().c_str());
+                       ESPhttpUpdate.getLastError(),
+                       ESPhttpUpdate.getLastErrorString().c_str());
           char errorText[128];
           snprintf(errorText, sizeof(errorText), "Update Failed! \n : %s", ESPhttpUpdate.getLastErrorString().c_str());
           showError(errorText, false);
@@ -662,14 +706,11 @@ void checkForOTAUpdate() {
     }
   } else {
     DEBUG_PRINTLN("Failed to fetch version info.");
-    DEBUG_PRINT("HTTP code: ");
-    DEBUG_PRINTLN(httpCode);
-    DEBUG_PRINT("HTTP error: ");
-    DEBUG_PRINTLN(http.errorToString(httpCode));
-    DEBUG_PRINT("HTTP Payload: ");
-    DEBUG_PRINTLN(http.getString());
+    DEBUG_PRINTF("HTTP code: %d\n", httpCode);
+    DEBUG_PRINTF("HTTP error: %s\n", http.errorToString(httpCode));
     http.end();
   }
+  client.stop();
 }
 
 ///////////////////////////
